@@ -1,0 +1,9 @@
+# IMDSv2 requirement configuration
+# Managed by Ansible - do not edit manually
+
+{% if aws_imdsv2_required | bool %}
+datasource:
+  Ec2:
+    imdsv2_enabled: true
+    http_put_response_hop_limit: 2
+{% endif %}

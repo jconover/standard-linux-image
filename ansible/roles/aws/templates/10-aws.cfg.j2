@@ -1,0 +1,26 @@
+# AWS EC2 cloud-init datasource configuration
+# Managed by Ansible - do not edit manually
+
+datasource_list: [ Ec2, None ]
+
+datasource:
+  Ec2:
+    strict_id: true
+{% if aws_imdsv2_required | bool %}
+    imdsv2_enabled: true
+    metadata_urls: [ 'http://169.254.169.254' ]
+    max_wait: 120
+    timeout: 50
+    retries: 5
+{% endif %}
+
+# EC2 instance identity document
+system_info:
+  distro: {{ ansible_distribution | lower }}
+  default_user:
+    name: {{ aws_default_user | default('ec2-user') }}
+    lock_passwd: true
+    gecos: EC2 Default User
+    groups: [wheel, adm, systemd-journal]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash

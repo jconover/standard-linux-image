@@ -1,0 +1,36 @@
+---
+# VMware vSphere role defaults
+
+# Package names
+vsphere_open_vm_tools_package: open-vm-tools
+vsphere_perl_package: perl
+
+# Service names
+vsphere_vmtoolsd_service: vmtoolsd
+
+# Cloud-init configuration
+vsphere_cloud_init_datasource_list:
+  - VMware
+  - OVF
+  - None
+
+# Enable/disable specific tasks
+vsphere_clear_machine_id: true
+vsphere_clear_ssh_host_keys: true
+vsphere_remove_dhcp_leases: true
+vsphere_disable_networkmanager_wait_online: true
+vsphere_configure_cloud_init: true
+
+# VMware customization support
+vsphere_customization_support: true
+
+# Shutdown behavior
+vsphere_shutdown_command: "/sbin/shutdown -h now"
+
+# Paths
+vsphere_machine_id_path: /etc/machine-id
+vsphere_cloud_init_vmware_config: /etc/cloud/cloud.cfg.d/10-vmware.cfg
+vsphere_dhcp_lease_paths:
+  - /var/lib/dhclient/*
+  - /var/lib/dhcp/*
+  - /var/lib/NetworkManager/*.lease

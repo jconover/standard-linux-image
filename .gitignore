@@ -1,0 +1,60 @@
+# Packer
+*.auto.pkrvars.hcl
+packer_cache/
+output-*/
+*.box
+
+# Ansible
+*.retry
+ansible/inventory/dynamic/*
+!ansible/inventory/dynamic/.gitkeep
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+credentials/
+
+# Logs
+*.log
+logs/
+
+# Vagrant
+.vagrant/
+Vagrantfile.local
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Terraform (if used)
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# InSpec
+inspec_results/
+*.json.lock
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Build artifacts
+build/
+dist/
+*.iso
+*.ova
+*.ovf
+*.vmdk

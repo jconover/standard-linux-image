@@ -1,0 +1,92 @@
+---
+# tasks file for cloud-init
+
+- name: Install cloud-init packages
+  ansible.builtin.dnf:
+    name:
+      - cloud-init
+      - cloud-utils-growpart
+    state: present
+
+- name: Enable cloud-init services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+  loop:
+    - cloud-init-local
+    - cloud-init
+    - cloud-config
+    - cloud-final
+
+- name: Deploy cloud.cfg configuration
+  ansible.builtin.template:
+    src: cloud.cfg.j2
+    dest: /etc/cloud/cloud.cfg
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Ensure cloud.cfg.d directory exists
+  ansible.builtin.file:
+    path: /etc/cloud/cloud.cfg.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure datasources based on target platform
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/10-datasource.cfg
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # {{ ansible_managed }}
+      # Datasource configuration for {{ target_platform | default('default') }}
+      {% if target_platform is defined and target_platform == 'vsphere' %}
+      datasource:
+        VMware:
+          allow_raw_data: true
+          vmware_cust_file_max_wait: 60
+      {% elif target_platform is defined and target_platform == 'aws' %}
+      datasource:
+        Ec2:
+          strict_id: false
+          timeout: 50
+          max_wait: 120
+      {% endif %}
+
+- name: Create custom cloud-init configuration
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-custom.cfg
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # {{ ansible_managed }}
+      # Custom cloud-init settings
+
+      # Preserve hostname if already set
+      preserve_hostname: false
+
+      # Manage /etc/hosts
+      manage_etc_hosts: true
+
+      # Network configuration
+      network:
+        config: disabled
+
+- name: Clean /var/lib/cloud for template preparation
+  ansible.builtin.file:
+    path: /var/lib/cloud
+    state: absent
+  when: clean_cloud_init | default(true) | bool
+
+- name: Recreate /var/lib/cloud directory
+  ansible.builtin.file:
+    path: /var/lib/cloud
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: clean_cloud_init | default(true) | bool

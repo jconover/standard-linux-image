@@ -1,0 +1,89 @@
+---
+# VMware vSphere preparation tasks
+
+- name: Install open-vm-tools package
+  ansible.builtin.package:
+    name: "{{ vsphere_open_vm_tools_package }}"
+    state: present
+
+- name: Install perl for VMware customizations
+  ansible.builtin.package:
+    name: "{{ vsphere_perl_package }}"
+    state: present
+  when: vsphere_customization_support | bool
+
+- name: Enable and start vmtoolsd service
+  ansible.builtin.service:
+    name: "{{ vsphere_vmtoolsd_service }}"
+    enabled: true
+    state: started
+
+- name: Configure VMware cloud-init datasource
+  ansible.builtin.template:
+    src: 10-vmware.cfg.j2
+    dest: "{{ vsphere_cloud_init_vmware_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: vsphere_configure_cloud_init | bool
+
+- name: Clear machine-id for proper cloning
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ vsphere_machine_id_path }}"
+    owner: root
+    group: root
+    mode: "0444"
+  when: vsphere_clear_machine_id | bool
+
+- name: Remove DHCP leases
+  ansible.builtin.shell: |
+    for pattern in {{ vsphere_dhcp_lease_paths | join(' ') }}; do
+      rm -f $pattern 2>/dev/null || true
+    done
+  args:
+    warn: false
+  changed_when: false
+  when: vsphere_remove_dhcp_leases | bool
+
+- name: Find SSH host keys
+  ansible.builtin.find:
+    paths: /etc/ssh
+    patterns: "ssh_host_*"
+  register: ssh_host_keys
+  when: vsphere_clear_ssh_host_keys | bool
+
+- name: Clear SSH host keys for regeneration on first boot
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ ssh_host_keys.files }}"
+  when:
+    - vsphere_clear_ssh_host_keys | bool
+    - ssh_host_keys.files is defined
+
+- name: Disable NetworkManager-wait-online service
+  ansible.builtin.service:
+    name: NetworkManager-wait-online
+    enabled: false
+  failed_when: false
+  when: vsphere_disable_networkmanager_wait_online | bool
+
+- name: Configure VMware shutdown behavior
+  ansible.builtin.copy:
+    dest: /etc/vmware-tools/tools.conf
+    content: |
+      [powerops]
+      # VMware power operations configuration
+      # Managed by Ansible - do not edit manually
+
+      # Command to execute on shutdown request
+      poweroff-script = {{ vsphere_shutdown_command }}
+
+      [guestinfo]
+      # Enable polling for guestinfo changes
+      poll-interval = 30
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart vmtoolsd

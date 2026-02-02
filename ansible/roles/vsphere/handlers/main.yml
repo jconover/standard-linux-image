@@ -1,0 +1,8 @@
+---
+# Handlers for vSphere role
+
+- name: Restart vmtoolsd
+  ansible.builtin.service:
+    name: "{{ vsphere_vmtoolsd_service }}"
+    state: restarted
+  when: ansible_virtualization_type == "VMware" or ansible_virtualization_type is not defined

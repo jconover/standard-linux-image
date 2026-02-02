@@ -1,0 +1,26 @@
+---
+# AWS role handlers
+
+- name: Restart amazon-ssm-agent
+  ansible.builtin.systemd:
+    name: amazon-ssm-agent
+    state: restarted
+    daemon_reload: true
+  when: aws_ssm_agent_enabled | bool
+
+- name: Restart chronyd
+  ansible.builtin.systemd:
+    name: chronyd
+    state: restarted
+  when: ansible_facts.services['chronyd.service'] is defined
+
+- name: Restart systemd-timesyncd
+  ansible.builtin.systemd:
+    name: systemd-timesyncd
+    state: restarted
+  when: ansible_facts.services['systemd-timesyncd.service'] is defined
+
+- name: Restart cloud-init
+  ansible.builtin.systemd:
+    name: cloud-init
+    state: restarted

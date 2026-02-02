@@ -1,0 +1,6 @@
+# AWS NTP server configuration for systemd-timesyncd
+# Managed by Ansible - do not edit manually
+
+[Time]
+NTP={{ aws_ntp_server }}
+FallbackNTP=0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org

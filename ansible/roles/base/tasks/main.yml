@@ -1,0 +1,109 @@
+---
+# Set system timezone
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ system_timezone }}"
+
+# Configure DNF to exclude kernel updates
+- name: Configure DNF to exclude kernel updates
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^exclude='
+    line: 'exclude=kernel* kernel-core* kernel-modules*'
+    state: present
+    create: false
+
+# Install essential packages
+- name: Install essential packages
+  ansible.builtin.dnf:
+    name: "{{ base_packages }}"
+    state: present
+
+# Remove unnecessary packages
+- name: Remove unnecessary packages
+  ansible.builtin.dnf:
+    name: "{{ base_packages_remove }}"
+    state: absent
+
+- name: Remove linux-firmware package
+  ansible.builtin.dnf:
+    name: linux-firmware
+    state: absent
+  when: remove_linux_firmware | bool
+
+# Enable and start chronyd for NTP
+- name: Ensure chronyd is installed
+  ansible.builtin.dnf:
+    name: chrony
+    state: present
+
+- name: Enable and start chronyd
+  ansible.builtin.systemd:
+    name: chronyd
+    state: started
+    enabled: true
+
+# Configure /etc/hosts with localhost entries
+- name: Configure /etc/hosts with localhost entries
+  ansible.builtin.copy:
+    dest: /etc/hosts
+    content: |
+      127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+      ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+    owner: root
+    group: root
+    mode: "0644"
+
+# Set SELinux state
+- name: Ensure libselinux-python is installed
+  ansible.builtin.dnf:
+    name: python3-libselinux
+    state: present
+
+- name: Set SELinux state
+  ansible.posix.selinux:
+    policy: targeted
+    state: "{{ selinux_state }}"
+
+# Create standard directories
+- name: Create standard directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop: "{{ base_directories }}"
+
+# Configure journald for persistent logging
+- name: Ensure /var/log/journal directory exists
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    mode: "2755"
+    owner: root
+    group: systemd-journal
+
+- name: Configure journald for persistent logging
+  ansible.builtin.ini_file:
+    path: /etc/systemd/journald.conf
+    section: Journal
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    no_extra_spaces: true
+  loop:
+    - { option: "Storage", value: "{{ journald_storage }}" }
+    - { option: "SystemMaxUse", value: "{{ journald_system_max_use }}" }
+    - { option: "SystemKeepFree", value: "{{ journald_system_keep_free }}" }
+  notify: Restart journald
+
+# Set default umask
+- name: Configure default umask
+  ansible.builtin.copy:
+    dest: /etc/profile.d/umask.sh
+    content: |
+      # Set default umask for all users
+      umask {{ default_umask }}
+    owner: root
+    group: root
+    mode: "0644"

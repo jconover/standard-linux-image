@@ -1,0 +1,20 @@
+---
+# Default user for cloud-init
+cloud_init_default_user: rocky
+
+# Whether to update packages on first boot
+cloud_init_package_update: true
+
+# Datasources based on target platform
+# These are set dynamically based on target_platform variable
+cloud_init_datasources:
+  vsphere:
+    - VMware
+    - OVF
+    - None
+  aws:
+    - Ec2
+    - None
+  default:
+    - NoCloud
+    - None

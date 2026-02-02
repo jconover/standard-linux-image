@@ -1,0 +1,298 @@
+---
+# AWS role tasks
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+# =============================================================================
+# SSM Agent Installation
+# =============================================================================
+
+- name: Install SSM Agent (Amazon Linux / RHEL / CentOS)
+  when:
+    - aws_ssm_agent_enabled | bool
+    - ansible_os_family == "RedHat"
+  block:
+    - name: Add AWS SSM Agent repository (RHEL/CentOS)
+      ansible.builtin.yum_repository:
+        name: amazon-ssm
+        description: Amazon SSM Agent Repository
+        baseurl: "https://s3.{{ aws_region | default('us-east-1') }}.amazonaws.com/amazon-ssm-{{ aws_region | default('us-east-1') }}/latest/linux_amd64/"
+        gpgcheck: true
+        gpgkey: "https://s3.{{ aws_region | default('us-east-1') }}.amazonaws.com/amazon-ssm-{{ aws_region | default('us-east-1') }}/latest/linux_amd64/amazon-ssm-agent.gpg.pub"
+        enabled: true
+
+    - name: Install amazon-ssm-agent package (RHEL/CentOS)
+      ansible.builtin.dnf:
+        name: amazon-ssm-agent
+        state: present
+
+- name: Install SSM Agent (Debian / Ubuntu)
+  when:
+    - aws_ssm_agent_enabled | bool
+    - ansible_os_family == "Debian"
+  block:
+    - name: Download SSM Agent deb package
+      ansible.builtin.get_url:
+        url: "https://s3.{{ aws_region | default('us-east-1') }}.amazonaws.com/amazon-ssm-{{ aws_region | default('us-east-1') }}/latest/debian_amd64/amazon-ssm-agent.deb"
+        dest: /tmp/amazon-ssm-agent.deb
+        mode: '0644'
+
+    - name: Install amazon-ssm-agent package (Debian/Ubuntu)
+      ansible.builtin.apt:
+        deb: /tmp/amazon-ssm-agent.deb
+        state: present
+
+    - name: Remove SSM Agent deb package
+      ansible.builtin.file:
+        path: /tmp/amazon-ssm-agent.deb
+        state: absent
+
+- name: Enable and start amazon-ssm-agent service
+  ansible.builtin.systemd:
+    name: amazon-ssm-agent
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: aws_ssm_agent_enabled | bool
+
+# =============================================================================
+# AWS CLI v2 Installation
+# =============================================================================
+
+- name: Install AWS CLI v2
+  when: aws_cli_install | bool
+  block:
+    - name: Check if AWS CLI v2 is already installed
+      ansible.builtin.command: /usr/local/bin/aws --version
+      register: aws_cli_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install AWS CLI v2 dependencies
+      ansible.builtin.package:
+        name:
+          - unzip
+          - curl
+        state: present
+
+    - name: Download AWS CLI v2 installer
+      ansible.builtin.get_url:
+        url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+        dest: /tmp/awscliv2.zip
+        mode: '0644'
+      when: aws_cli_check.rc != 0
+
+    - name: Create AWS CLI extraction directory
+      ansible.builtin.file:
+        path: /tmp/awscli
+        state: directory
+        mode: '0755'
+      when: aws_cli_check.rc != 0
+
+    - name: Extract AWS CLI v2 installer
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/awscli
+        remote_src: true
+      when: aws_cli_check.rc != 0
+
+    - name: Install AWS CLI v2
+      ansible.builtin.command: /tmp/awscli/aws/install
+      args:
+        creates: /usr/local/bin/aws
+      when: aws_cli_check.rc != 0
+
+    - name: Clean up AWS CLI installation files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/awscliv2.zip
+        - /tmp/awscli
+      when: aws_cli_check.rc != 0
+
+# =============================================================================
+# Cloud-init EC2 Datasource Configuration
+# =============================================================================
+
+- name: Ensure cloud.cfg.d directory exists
+  ansible.builtin.file:
+    path: /etc/cloud/cloud.cfg.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Configure cloud-init EC2 datasource
+  ansible.builtin.template:
+    src: 10-aws.cfg.j2
+    dest: /etc/cloud/cloud.cfg.d/10-aws.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart cloud-init
+
+# =============================================================================
+# EC2 Instance Connect Installation
+# =============================================================================
+
+- name: Install ec2-instance-connect (RHEL/CentOS)
+  ansible.builtin.dnf:
+    name: ec2-instance-connect
+    state: present
+  when:
+    - aws_ec2_instance_connect_enabled | bool
+    - ansible_os_family == "RedHat"
+  failed_when: false
+
+- name: Install ec2-instance-connect (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: ec2-instance-connect
+    state: present
+  when:
+    - aws_ec2_instance_connect_enabled | bool
+    - ansible_os_family == "Debian"
+  failed_when: false
+
+# =============================================================================
+# IMDSv2 Requirement Configuration
+# =============================================================================
+
+- name: Configure IMDSv2 requirement via cloud-init
+  ansible.builtin.template:
+    src: 99-imdsv2.cfg.j2
+    dest: /etc/cloud/cloud.cfg.d/99-imdsv2.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  when: aws_imdsv2_required | bool
+  notify: Restart cloud-init
+
+# =============================================================================
+# AWS NTP Server Configuration
+# =============================================================================
+
+- name: Configure AWS NTP server (chrony)
+  ansible.builtin.template:
+    src: chrony-aws.conf.j2
+    dest: /etc/chrony.d/aws.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_facts.services['chronyd.service'] is defined
+  notify: Restart chronyd
+
+- name: Ensure chrony.d directory exists (if chrony installed)
+  ansible.builtin.file:
+    path: /etc/chrony.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: ansible_facts.services['chronyd.service'] is defined
+
+- name: Configure AWS NTP server (systemd-timesyncd)
+  ansible.builtin.template:
+    src: timesyncd-aws.conf.j2
+    dest: /etc/systemd/timesyncd.conf.d/aws.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_facts.services['systemd-timesyncd.service'] is defined
+  notify: Restart systemd-timesyncd
+
+- name: Ensure timesyncd.conf.d directory exists (if timesyncd installed)
+  ansible.builtin.file:
+    path: /etc/systemd/timesyncd.conf.d
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: ansible_facts.services['systemd-timesyncd.service'] is defined
+
+# =============================================================================
+# Enhanced Networking Checks
+# =============================================================================
+
+- name: Check for ENA (Elastic Network Adapter) module
+  ansible.builtin.shell: |
+    set -o pipefail
+    modinfo ena 2>/dev/null | grep -q "filename" && echo "ena_available" || echo "ena_not_available"
+  args:
+    executable: /bin/bash
+  register: ena_check
+  changed_when: false
+  failed_when: false
+
+- name: Ensure ENA module is loaded at boot
+  ansible.builtin.lineinfile:
+    path: /etc/modules-load.d/aws-ena.conf
+    line: ena
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+  when: ena_check.stdout == "ena_available"
+
+- name: Load ENA module
+  community.general.modprobe:
+    name: ena
+    state: present
+  when: ena_check.stdout == "ena_available"
+  failed_when: false
+
+# =============================================================================
+# AMI Preparation - Clear machine-specific data
+# =============================================================================
+
+- name: Clear machine-id for proper AMI creation
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/machine-id
+    owner: root
+    group: root
+    mode: '0444'
+
+- name: Remove machine-id symlink in /var/lib/dbus if exists
+  ansible.builtin.file:
+    path: /var/lib/dbus/machine-id
+    state: absent
+
+- name: Remove DHCP leases (NetworkManager)
+  ansible.builtin.shell: rm -f /var/lib/NetworkManager/*.lease
+  args:
+    warn: false
+  changed_when: false
+  failed_when: false
+
+- name: Remove DHCP leases (dhclient)
+  ansible.builtin.shell: rm -f /var/lib/dhclient/*.lease /var/lib/dhcp/*.lease
+  args:
+    warn: false
+  changed_when: false
+  failed_when: false
+
+- name: Remove DHCP leases (systemd-networkd)
+  ansible.builtin.shell: rm -f /var/lib/systemd/network/*.lease
+  args:
+    warn: false
+  changed_when: false
+  failed_when: false
+
+- name: Clear SSH host keys
+  ansible.builtin.shell: rm -f /etc/ssh/ssh_host_*
+  args:
+    warn: false
+  changed_when: false
+  failed_when: false
+
+- name: Ensure SSH host keys will be regenerated on first boot
+  ansible.builtin.lineinfile:
+    path: /etc/rc.local
+    line: "test -f /etc/ssh/ssh_host_rsa_key || ssh-keygen -A"
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  failed_when: false

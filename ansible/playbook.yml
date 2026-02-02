@@ -1,0 +1,24 @@
+---
+- name: Build Standard Linux Image
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    target_platform: vsphere
+    rocky_version: "9"
+    skip_hardening: false
+
+  roles:
+    - role: base
+
+    - role: cloud-init
+
+    - role: vsphere
+      when: target_platform == 'vsphere'
+
+    - role: aws
+      when: target_platform == 'aws'
+
+    - role: hardening
+      when: not skip_hardening

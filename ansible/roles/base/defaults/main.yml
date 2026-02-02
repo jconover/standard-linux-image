@@ -1,0 +1,46 @@
+---
+# Timezone configuration
+system_timezone: "UTC"
+
+# SELinux configuration
+selinux_state: "enforcing"
+
+# Essential packages to install
+base_packages:
+  - curl
+  - wget
+  - vim-enhanced
+  - jq
+  - unzip
+  - tar
+  - bash-completion
+  - tmux
+  - htop
+  - lsof
+  - net-tools
+  - bind-utils
+  - tcpdump
+  - rsync
+  - git
+
+# Packages to remove
+base_packages_remove:
+  - plymouth
+
+# Conditionally remove linux-firmware (set to false if hardware needs it)
+remove_linux_firmware: true
+
+# Standard directories to create
+base_directories:
+  - path: /opt/scripts
+    mode: "0755"
+  - path: /var/log/app
+    mode: "0755"
+
+# Journald configuration
+journald_storage: "persistent"
+journald_system_max_use: "500M"
+journald_system_keep_free: "1G"
+
+# Default umask
+default_umask: "027"

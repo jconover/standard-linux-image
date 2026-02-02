@@ -1,0 +1,9 @@
+# VMware cloud-init datasource configuration
+# Managed by Ansible - do not edit manually
+
+datasource_list: {{ vsphere_cloud_init_datasource_list | to_json }}
+
+datasource:
+  VMware:
+    allow_raw_data: true
+    vmware_cust_file_max_wait: 15
