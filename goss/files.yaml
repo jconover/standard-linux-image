@@ -1,0 +1,21 @@
+file:
+  /etc/ssh/sshd_config:
+    exists: true
+    mode: "0600"
+    owner: root
+
+  /etc/passwd:
+    exists: true
+    mode: "0644"
+    owner: root
+
+  /etc/shadow:
+    exists: true
+    mode: "0000"
+    owner: root
+
+  /etc/cloud/cloud.cfg:
+    exists: true
+
+  /etc/audit/auditd.conf:
+    exists: true

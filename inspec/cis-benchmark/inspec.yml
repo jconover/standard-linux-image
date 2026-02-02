@@ -1,0 +1,103 @@
+name: cis-rocky-linux
+title: CIS Rocky Linux 9/10 Benchmark
+maintainer: Your Organization
+copyright: Your Organization
+license: Apache-2.0
+summary: InSpec profile for CIS Rocky Linux benchmark validation
+version: 1.0.0
+
+supports:
+  - platform-family: redhat
+
+inputs:
+  - name: ssh_port
+    description: SSH service port
+    type: Numeric
+    value: 22
+
+  - name: allowed_services
+    description: List of services allowed to be running
+    type: Array
+    value:
+      - sshd
+      - chronyd
+      - auditd
+      - rsyslog
+
+  - name: ssh_client_alive_interval
+    description: SSH ClientAliveInterval setting
+    type: Numeric
+    value: 300
+
+  - name: ssh_client_alive_count_max
+    description: SSH ClientAliveCountMax setting
+    type: Numeric
+    value: 3
+
+  - name: ssh_login_grace_time
+    description: SSH LoginGraceTime setting
+    type: Numeric
+    value: 60
+
+  - name: ssh_max_auth_tries
+    description: SSH MaxAuthTries setting
+    type: Numeric
+    value: 4
+
+  - name: ssh_max_sessions
+    description: SSH MaxSessions setting
+    type: Numeric
+    value: 10
+
+  - name: password_max_days
+    description: Maximum password age in days
+    type: Numeric
+    value: 365
+
+  - name: password_min_days
+    description: Minimum password age in days
+    type: Numeric
+    value: 1
+
+  - name: password_warn_age
+    description: Password expiration warning days
+    type: Numeric
+    value: 7
+
+  - name: password_min_length
+    description: Minimum password length
+    type: Numeric
+    value: 14
+
+  - name: audit_log_max_size
+    description: Maximum audit log file size in MB
+    type: Numeric
+    value: 8
+
+  - name: allowed_system_accounts
+    description: List of allowed system accounts with shells
+    type: Array
+    value:
+      - root
+
+  - name: umask_default
+    description: Default umask value
+    type: String
+    value: '027'
+
+  - name: banner_message_enabled
+    description: Whether login banner should be displayed
+    type: Boolean
+    value: true
+
+  - name: disable_ipv6
+    description: Whether IPv6 should be disabled
+    type: Boolean
+    value: false
+
+  - name: time_servers
+    description: List of approved NTP/Chrony time servers
+    type: Array
+    value:
+      - time.cloudflare.com
+      - time.google.com

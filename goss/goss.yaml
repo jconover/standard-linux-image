@@ -1,0 +1,5 @@
+gossfile:
+  goss/services.yaml: {}
+  goss/packages.yaml: {}
+  goss/files.yaml: {}
+  goss/commands.yaml: {}

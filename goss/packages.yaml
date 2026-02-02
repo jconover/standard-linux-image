@@ -1,0 +1,26 @@
+package:
+  # Required packages - must be installed
+  cloud-init:
+    installed: true
+
+  audit:
+    installed: true
+
+  rsyslog:
+    installed: true
+
+  chrony:
+    installed: true
+
+  firewalld:
+    installed: true
+
+  # Unwanted packages - must NOT be installed
+  telnet:
+    installed: false
+
+  rsh:
+    installed: false
+
+  ypbind:
+    installed: false

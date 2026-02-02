@@ -1,0 +1,36 @@
+service:
+  sshd:
+    enabled: true
+    running: true
+
+  firewalld:
+    enabled: true
+    running: true
+
+  chronyd:
+    enabled: true
+    running: true
+
+  auditd:
+    enabled: true
+    running: true
+
+  rsyslog:
+    enabled: true
+    running: true
+
+  cloud-init-local:
+    enabled: true
+    running: true
+
+  cloud-init:
+    enabled: true
+    running: true
+
+  cloud-config:
+    enabled: true
+    running: true
+
+  cloud-final:
+    enabled: true
+    running: true

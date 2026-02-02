@@ -1,0 +1,20 @@
+command:
+  getenforce:
+    exit-status: 0
+    stdout:
+      - Enforcing
+
+  firewall-cmd --get-default-zone:
+    exit-status: 0
+    stdout:
+      - drop
+
+  sestatus | grep "SELinux status":
+    exit-status: 0
+    stdout:
+      - /enabled/
+
+  cloud-init status:
+    exit-status: 0
+    stdout:
+      - /status: (done|running)/
