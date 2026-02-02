@@ -1,0 +1,40 @@
+---
+# Handlers for hardening role
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  listen: "restart sshd"
+
+- name: Restart auditd
+  ansible.builtin.service:
+    name: auditd
+    state: restarted
+  # auditd requires special handling - use command if service module fails
+  ignore_errors: true
+  register: auditd_restart_service
+  listen: "restart auditd"
+
+- name: Restart auditd with command
+  ansible.builtin.command:
+    cmd: service auditd restart
+  when: auditd_restart_service is failed
+  listen: "restart auditd"
+
+- name: Reload firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: reloaded
+  listen: "reload firewalld"
+
+- name: Reload sysctl
+  ansible.builtin.command:
+    cmd: sysctl --system
+  listen: "reload sysctl"
+
+- name: Restart rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted
+  listen: "restart rsyslog"

@@ -1,0 +1,157 @@
+---
+# CIS Benchmark PAM Hardening Tasks
+
+# Ensure required PAM packages are installed
+- name: Ensure PAM packages are installed
+  ansible.builtin.dnf:
+    name:
+      - pam
+      - libpwquality
+    state: present
+
+# Configure password quality requirements
+- name: Deploy pwquality configuration
+  ansible.builtin.template:
+    src: pwquality.conf.j2
+    dest: /etc/security/pwquality.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# Configure account lockout using faillock.conf (RHEL 8+/Rocky 8+)
+- name: Deploy faillock configuration
+  ansible.builtin.template:
+    src: faillock.conf.j2
+    dest: /etc/security/faillock.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# Ensure pam_faillock is configured in system-auth
+- name: Ensure pam_faillock preauth is configured in system-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^auth\s+required\s+pam_faillock\.so\s+preauth'
+    line: "auth        required                                     pam_faillock.so preauth silent"
+    insertbefore: '^auth\s+sufficient\s+pam_unix\.so'
+    state: present
+
+- name: Ensure pam_faillock authfail is configured in system-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^auth\s+\[default=die\]\s+pam_faillock\.so\s+authfail'
+    line: "auth        [default=die]                                pam_faillock.so authfail"
+    insertafter: '^auth\s+sufficient\s+pam_unix\.so'
+    state: present
+
+- name: Ensure pam_faillock account is configured in system-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^account\s+required\s+pam_faillock\.so'
+    line: "account     required                                     pam_faillock.so"
+    insertbefore: '^account\s+required\s+pam_unix\.so'
+    state: present
+
+# Ensure pam_faillock is configured in password-auth
+- name: Ensure pam_faillock preauth is configured in password-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^auth\s+required\s+pam_faillock\.so\s+preauth'
+    line: "auth        required                                     pam_faillock.so preauth silent"
+    insertbefore: '^auth\s+sufficient\s+pam_unix\.so'
+    state: present
+
+- name: Ensure pam_faillock authfail is configured in password-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^auth\s+\[default=die\]\s+pam_faillock\.so\s+authfail'
+    line: "auth        [default=die]                                pam_faillock.so authfail"
+    insertafter: '^auth\s+sufficient\s+pam_unix\.so'
+    state: present
+
+- name: Ensure pam_faillock account is configured in password-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^account\s+required\s+pam_faillock\.so'
+    line: "account     required                                     pam_faillock.so"
+    insertbefore: '^account\s+required\s+pam_unix\.so'
+    state: present
+
+# Configure password history using pam_pwhistory
+- name: Ensure pam_pwhistory is configured in system-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^password\s+requisite\s+pam_pwhistory\.so'
+    line: "password    requisite                                    pam_pwhistory.so remember={{ hardening_password_history }} use_authtok"
+    insertbefore: '^password\s+sufficient\s+pam_unix\.so'
+    state: present
+
+- name: Ensure pam_pwhistory is configured in password-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^password\s+requisite\s+pam_pwhistory\.so'
+    line: "password    requisite                                    pam_pwhistory.so remember={{ hardening_password_history }} use_authtok"
+    insertbefore: '^password\s+sufficient\s+pam_unix\.so'
+    state: present
+
+# Ensure pam_pwquality is configured
+- name: Ensure pam_pwquality is configured in system-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^password\s+requisite\s+pam_pwquality\.so'
+    line: "password    requisite                                    pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type="
+    insertbefore: '^password\s+requisite\s+pam_pwhistory\.so'
+    state: present
+
+- name: Ensure pam_pwquality is configured in password-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^password\s+requisite\s+pam_pwquality\.so'
+    line: "password    requisite                                    pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type="
+    insertbefore: '^password\s+requisite\s+pam_pwhistory\.so'
+    state: present
+
+# Configure /etc/login.defs
+- name: Deploy login.defs configuration
+  ansible.builtin.template:
+    src: login.defs.j2
+    dest: /etc/login.defs
+    owner: root
+    group: root
+    mode: "0644"
+
+# Ensure wheel group exists for su restriction
+- name: Ensure wheel group exists
+  ansible.builtin.group:
+    name: wheel
+    state: present
+  when: hardening_restrict_su_to_wheel | bool
+
+# Restrict su to wheel group
+- name: Restrict su command to wheel group
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^#?auth\s+required\s+pam_wheel\.so\s+use_uid'
+    line: "auth           required        pam_wheel.so use_uid"
+    insertafter: '^#?auth\s+substack\s+system-auth'
+    state: present
+  when: hardening_restrict_su_to_wheel | bool
+
+# Ensure only root owns the su configuration
+- name: Set proper permissions on /etc/pam.d/su
+  ansible.builtin.file:
+    path: /etc/pam.d/su
+    owner: root
+    group: root
+    mode: "0644"
+
+# Create /etc/security/opasswd file for password history
+- name: Ensure /etc/security/opasswd file exists
+  ansible.builtin.file:
+    path: /etc/security/opasswd
+    state: touch
+    owner: root
+    group: root
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve

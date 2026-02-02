@@ -1,0 +1,64 @@
+# {{ ansible_managed }}
+# CIS Benchmark Filesystem Hardening
+# Disable mounting of uncommon filesystems
+
+{% if 'cramfs' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.1 - Disable cramfs
+install cramfs /bin/true
+blacklist cramfs
+{% endif %}
+
+{% if 'freevxfs' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.2 - Disable freevxfs
+install freevxfs /bin/true
+blacklist freevxfs
+{% endif %}
+
+{% if 'jffs2' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.3 - Disable jffs2
+install jffs2 /bin/true
+blacklist jffs2
+{% endif %}
+
+{% if 'hfs' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.4 - Disable hfs
+install hfs /bin/true
+blacklist hfs
+{% endif %}
+
+{% if 'hfsplus' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.5 - Disable hfsplus
+install hfsplus /bin/true
+blacklist hfsplus
+{% endif %}
+
+{% if 'squashfs' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.6 - Disable squashfs
+install squashfs /bin/true
+blacklist squashfs
+{% endif %}
+
+{% if 'udf' in hardening_kernel_modules_disable %}
+# CIS 1.1.1.7 - Disable udf
+install udf /bin/true
+blacklist udf
+{% endif %}
+
+{% if hardening_filesystem_disable_vfat | default(false) | bool %}
+# CIS 1.1.1.8 - Disable vfat
+# WARNING: May be required for UEFI boot partitions
+install vfat /bin/true
+blacklist vfat
+{% endif %}
+
+{% if 'usb-storage' in hardening_kernel_modules_disable or hardening_disable_usb_storage | default(false) | bool %}
+# CIS 1.1.23 - Disable USB Storage
+install usb-storage /bin/true
+blacklist usb-storage
+{% endif %}
+
+{% if 'firewire-core' in hardening_kernel_modules_disable %}
+# Disable FireWire storage
+install firewire-core /bin/true
+blacklist firewire-core
+{% endif %}

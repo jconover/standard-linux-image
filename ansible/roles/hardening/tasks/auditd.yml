@@ -1,0 +1,58 @@
+---
+# Audit daemon configuration
+
+- name: Ensure auditd is installed
+  ansible.builtin.package:
+    name: "{{ (ansible_os_family == 'Debian') | ternary('auditd', 'audit') }}"
+    state: present
+  when: hardening_auditd_enabled
+
+- name: Configure auditd.conf
+  ansible.builtin.template:
+    src: auditd.conf.j2
+    dest: /etc/audit/auditd.conf
+    owner: root
+    group: root
+    mode: '0640'
+    backup: true
+  notify: restart auditd
+  when: hardening_auditd_enabled
+
+- name: Deploy audit rules
+  ansible.builtin.template:
+    src: audit.rules.j2
+    dest: /etc/audit/rules.d/hardening.rules
+    owner: root
+    group: root
+    mode: '0640'
+  notify: restart auditd
+  when: hardening_auditd_enabled and hardening_auditd_rules_enabled
+
+- name: Start and enable auditd
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: true
+  when: hardening_auditd_enabled
+
+- name: Ensure audit logs directory has correct permissions
+  ansible.builtin.file:
+    path: /var/log/audit
+    state: directory
+    owner: root
+    group: root
+    mode: '0750'
+  when: hardening_auditd_enabled
+
+- name: Configure audit log rotation
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^max_log_file =', line: 'max_log_file = {{ hardening_auditd_max_log_file }}' }
+    - { regexp: '^num_logs =', line: 'num_logs = {{ hardening_auditd_num_logs }}' }
+    - { regexp: '^max_log_file_action =', line: 'max_log_file_action = {{ hardening_auditd_max_log_file_action }}' }
+  notify: restart auditd
+  when: hardening_auditd_enabled

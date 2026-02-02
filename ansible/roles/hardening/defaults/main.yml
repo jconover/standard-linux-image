@@ -1,0 +1,567 @@
+---
+# Hardening role default variables
+# Organized by category for easy customization
+
+################################################################################
+# SSH Settings
+################################################################################
+hardening_ssh_port: 22
+hardening_ssh_listen_address: "0.0.0.0"
+hardening_ssh_protocol: 2
+hardening_ssh_permit_root_login: "no"
+hardening_ssh_password_authentication: "no"
+hardening_ssh_permit_empty_passwords: "no"
+hardening_ssh_challenge_response_authentication: "no"
+hardening_ssh_gssapi_authentication: "no"
+hardening_ssh_kerberos_authentication: "no"
+hardening_ssh_x11_forwarding: "no"
+hardening_ssh_allow_tcp_forwarding: "no"
+hardening_ssh_allow_agent_forwarding: "no"
+hardening_ssh_permit_user_environment: "no"
+hardening_ssh_strict_modes: "yes"
+hardening_ssh_use_pam: "yes"
+hardening_ssh_print_motd: "no"
+hardening_ssh_print_last_log: "yes"
+hardening_ssh_tcp_keep_alive: "yes"
+hardening_ssh_compression: "no"
+hardening_ssh_client_alive_interval: 300
+hardening_ssh_client_alive_count_max: 2
+hardening_ssh_login_grace_time: 60
+hardening_ssh_max_auth_tries: 4
+hardening_ssh_max_sessions: 4
+hardening_ssh_max_startups: "10:30:60"
+
+# SSH Ciphers (CIS Benchmark approved strong ciphers only)
+hardening_ssh_ciphers:
+  - aes256-gcm@openssh.com
+  - chacha20-poly1305@openssh.com
+  - aes256-ctr
+
+# SSH MACs (message authentication codes)
+hardening_ssh_macs:
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+  - hmac-sha2-512
+  - hmac-sha2-256
+
+# SSH Key Exchange Algorithms (CIS Benchmark compliant)
+hardening_ssh_kex_algorithms:
+  - curve25519-sha256
+  - curve25519-sha256@libssh.org
+  - diffie-hellman-group16-sha512
+  - diffie-hellman-group18-sha512
+
+# SSH Host Key Algorithms
+hardening_ssh_host_key_algorithms:
+  - ssh-ed25519
+  - ssh-ed25519-cert-v01@openssh.com
+  - rsa-sha2-512
+  - rsa-sha2-256
+
+# SSH Allowed Users/Groups (empty means all allowed)
+hardening_ssh_allow_users: []
+hardening_ssh_allow_groups:
+  - wheel
+  - ssh-users
+hardening_ssh_deny_users: []
+hardening_ssh_deny_groups: []
+
+################################################################################
+# Password Policies
+################################################################################
+hardening_password_min_length: 14
+hardening_password_min_class: 4
+hardening_password_max_repeat: 3
+hardening_password_max_class_repeat: 4
+hardening_password_require_uppercase: 1
+hardening_password_require_lowercase: 1
+hardening_password_require_digits: 1
+hardening_password_require_special: 1
+hardening_password_history: 5
+hardening_password_max_age: 365
+hardening_password_min_age: 1
+hardening_password_warn_age: 7
+hardening_password_inactive_days: 30
+hardening_password_enforce_root: true
+hardening_password_dictcheck: true
+hardening_password_usercheck: true
+hardening_password_enforcing: true
+hardening_password_encrypt_method: "SHA512"
+hardening_password_sha_crypt_min_rounds: 5000
+hardening_password_sha_crypt_max_rounds: 5000
+
+# su restriction to wheel group
+hardening_restrict_su_to_wheel: true
+
+################################################################################
+# Account Lockout Settings
+################################################################################
+hardening_lockout_fail_count: 5
+hardening_lockout_unlock_time: 900
+hardening_lockout_fail_interval: 900
+hardening_lockout_deny_root: true
+hardening_lockout_root_unlock_time: 900
+hardening_lockout_even_deny_root: false
+
+################################################################################
+# Firewall Settings
+################################################################################
+# Main toggle for firewall hardening
+firewall_enabled: true
+
+# Default zone (CIS recommends drop for deny-by-default)
+firewall_default_zone: "drop"
+
+# Services allowed in public zone
+firewall_allowed_services:
+  - ssh
+
+# Ports allowed in public zone (format: port/protocol, e.g., "8080/tcp")
+firewall_allowed_ports: []
+
+# Enable logging of denied packets (CIS requirement)
+firewall_enable_logging: true
+
+# Allow ICMP echo-request (ping)
+firewall_allow_ping: true
+
+# IPv6 control - set to true to completely disable IPv6
+firewall_disable_ipv6: false
+
+# SSH rate limiting (helps prevent brute force attacks)
+firewall_ssh_rate_limit_enabled: true
+firewall_ssh_rate_limit: "10/m"
+
+# Ping rate limiting (optional, helps prevent ICMP flood attacks)
+firewall_ping_rate_limit_enabled: false
+firewall_ping_rate_limit: "5/s"
+
+# Custom rich rules for advanced configurations
+# Format: list of dicts with 'rule', optional 'zone' (default: public), optional 'state' (default: enabled)
+# Example:
+#   - rule: "rule family='ipv4' source address='192.168.1.0/24' service name='http' accept"
+#     zone: public
+#     state: enabled
+firewall_custom_rich_rules: []
+
+# Trusted sources (IP addresses/networks) - added to trusted zone
+firewall_trusted_sources: []
+
+# Advanced firewalld.conf settings
+firewall_lockdown_enabled: false
+firewall_ipv6_rpfilter: "strict"
+firewall_backend: "nftables"
+firewall_nftables_flowtable: "off"
+firewall_nftables_counters: false
+
+# Legacy variables for backward compatibility
+hardening_firewall_enabled: "{{ firewall_enabled }}"
+hardening_firewall_default_zone: "{{ firewall_default_zone }}"
+hardening_firewall_log_denied: "{{ 'all' if firewall_enable_logging else 'off' }}"
+hardening_firewall_allowed_services: "{{ firewall_allowed_services }}"
+hardening_firewall_allowed_ports: "{{ firewall_allowed_ports }}"
+hardening_firewall_rich_rules: "{{ firewall_custom_rich_rules | map(attribute='rule') | list }}"
+hardening_firewall_trusted_sources: "{{ firewall_trusted_sources }}"
+hardening_firewall_zones: []
+
+################################################################################
+# Auditd Settings
+################################################################################
+hardening_auditd_enabled: true
+hardening_auditd_max_log_file: 50
+hardening_auditd_num_logs: 5
+hardening_auditd_max_log_file_action: "rotate"
+hardening_auditd_space_left: 75
+hardening_auditd_space_left_action: "email"
+hardening_auditd_admin_space_left: 50
+hardening_auditd_admin_space_left_action: "halt"
+hardening_auditd_disk_full_action: "halt"
+hardening_auditd_disk_error_action: "halt"
+hardening_auditd_action_mail_acct: "root"
+hardening_auditd_flush: "incremental_async"
+hardening_auditd_freq: 50
+hardening_auditd_name_format: "hostname"
+hardening_auditd_log_format: "ENRICHED"
+
+# Audit rules configuration
+hardening_auditd_rules_enabled: true
+hardening_auditd_rules_immutable: false
+
+################################################################################
+# Sysctl Hardening Toggles
+################################################################################
+# Category toggles - enable/disable entire sections
+sysctl_network_hardening: true
+sysctl_ipv6_hardening: true
+sysctl_disable_ipv6: false
+sysctl_kernel_hardening: true
+sysctl_apply_immediately: true
+
+# Network security settings
+hardening_sysctl_net_ipv4_ip_forward: false
+hardening_sysctl_net_ipv4_conf_all_send_redirects: false
+hardening_sysctl_net_ipv4_conf_default_send_redirects: false
+hardening_sysctl_net_ipv4_conf_all_accept_source_route: false
+hardening_sysctl_net_ipv4_conf_default_accept_source_route: false
+hardening_sysctl_net_ipv4_conf_all_accept_redirects: false
+hardening_sysctl_net_ipv4_conf_default_accept_redirects: false
+hardening_sysctl_net_ipv4_conf_all_secure_redirects: false
+hardening_sysctl_net_ipv4_conf_default_secure_redirects: false
+hardening_sysctl_net_ipv4_conf_all_log_martians: true
+hardening_sysctl_net_ipv4_conf_default_log_martians: true
+hardening_sysctl_net_ipv4_icmp_echo_ignore_broadcasts: true
+hardening_sysctl_net_ipv4_icmp_ignore_bogus_error_responses: true
+hardening_sysctl_net_ipv4_conf_all_rp_filter: true
+hardening_sysctl_net_ipv4_conf_default_rp_filter: true
+hardening_sysctl_net_ipv4_tcp_syncookies: true
+hardening_sysctl_net_ipv4_tcp_timestamps: false
+
+# IPv6 settings
+hardening_sysctl_net_ipv6_conf_all_accept_ra: false
+hardening_sysctl_net_ipv6_conf_default_accept_ra: false
+hardening_sysctl_net_ipv6_conf_all_accept_redirects: false
+hardening_sysctl_net_ipv6_conf_default_accept_redirects: false
+hardening_sysctl_net_ipv6_conf_all_accept_source_route: false
+hardening_sysctl_net_ipv6_conf_default_accept_source_route: false
+hardening_sysctl_net_ipv6_conf_all_disable_ipv6: false
+hardening_sysctl_net_ipv6_conf_default_disable_ipv6: false
+
+# Kernel security settings
+hardening_sysctl_kernel_randomize_va_space: 2
+hardening_sysctl_kernel_exec_shield: true
+hardening_sysctl_kernel_kptr_restrict: 2
+hardening_sysctl_kernel_dmesg_restrict: true
+hardening_sysctl_kernel_perf_event_paranoid: 3
+hardening_sysctl_kernel_yama_ptrace_scope: 2
+hardening_sysctl_kernel_core_uses_pid: true
+hardening_sysctl_kernel_sysrq: 0
+hardening_sysctl_kernel_unprivileged_bpf_disabled: true
+hardening_sysctl_kernel_kexec_load_disabled: true
+
+# File system security settings
+hardening_sysctl_fs_suid_dumpable: 0
+hardening_sysctl_fs_protected_hardlinks: true
+hardening_sysctl_fs_protected_symlinks: true
+hardening_sysctl_fs_protected_fifos: 2
+hardening_sysctl_fs_protected_regular: 2
+
+################################################################################
+# Service Hardening
+################################################################################
+# Services to disable (stop, disable, and mask)
+# CIS Benchmark: Disable unnecessary services
+hardening_disable_services:
+  # Network Discovery/Multicast
+  - avahi-daemon              # mDNS/DNS-SD service discovery (CIS 2.2.3)
+  # Printing
+  - cups                      # Common Unix Printing System (CIS 2.2.4)
+  # Network Servers (should not run unless needed)
+  - dhcpd                     # DHCP server (CIS 2.2.5)
+  - slapd                     # LDAP server (CIS 2.2.6)
+  - nfs-server                # NFS server (CIS 2.2.7)
+  - nfs                       # NFS (alternate name)
+  - rpcbind                   # RPC portmapper (CIS 2.2.7)
+  - named                     # DNS server (CIS 2.2.8)
+  - vsftpd                    # FTP server (CIS 2.2.9)
+  - httpd                     # HTTP server Apache (CIS 2.2.10)
+  - nginx                     # HTTP server nginx
+  - dovecot                   # IMAP/POP3 server (CIS 2.2.11)
+  - smb                       # Samba file sharing (CIS 2.2.12)
+  - nmb                       # Samba NetBIOS name server
+  - squid                     # HTTP proxy server (CIS 2.2.13)
+  - snmpd                     # SNMP daemon (CIS 2.2.14)
+  - ypserv                    # NIS server (CIS 2.2.17)
+  # Legacy Remote Access (insecure protocols - CIS 2.2.18-2.2.21)
+  - telnet.socket             # Telnet server
+  - rsh.socket                # Remote shell
+  - rlogin.socket             # Remote login
+  - rexec.socket              # Remote exec
+  - tftp.socket               # TFTP server
+  # Other potentially unnecessary services
+  - rsyncd                    # Rsync daemon
+  - ntalk                     # Talk daemon
+  - autofs                    # Automount daemon
+
+# Packages to remove (unnecessary or insecure)
+# CIS Benchmark: Remove packages that provide unnecessary functionality
+hardening_remove_packages:
+  # X Window System (CIS 2.2.2 - unless GUI is required)
+  - xorg-x11-server-Xorg
+  - xorg-x11-server-common
+  - xorg-x11-server-utils
+  - xorg-x11-fonts-Type1
+  # Legacy insecure remote access clients (CIS 2.3.x)
+  - telnet                    # Telnet client (CIS 2.3.4)
+  - rsh                       # Remote shell client (CIS 2.3.2)
+  - rsh-client                # Remote shell client (Debian)
+  - ypbind                    # NIS client (CIS 2.3.1)
+  - talk                      # Talk client (CIS 2.3.3)
+  - tftp                      # TFTP client
+  # Other unnecessary packages
+  - mcstrans                  # SELinux translation daemon
+  - setroubleshoot            # SELinux troubleshooter (for servers)
+  - prelink                   # Binary prelinking (interferes with AIDE)
+
+# Required services that must be enabled
+# CIS Benchmark: Critical system services must be running
+hardening_required_services:
+  - crond                     # Cron daemon for scheduled tasks (CIS 5.1.1)
+  - rsyslog                   # System logging (CIS 4.2.1.1)
+  - chronyd                   # Time synchronization NTP (CIS 2.1.1)
+
+# Services to enable (started and enabled) - additional services
+hardening_services_enable:
+  - auditd
+  - rsyslog
+  - firewalld
+
+# Kernel modules to disable (blacklist)
+hardening_kernel_modules_disable:
+  - cramfs
+  - freevxfs
+  - hfs
+  - hfsplus
+  - jffs2
+  - squashfs
+  - udf
+  - dccp
+  - sctp
+  - rds
+  - tipc
+  - usb-storage
+  - firewire-core
+
+################################################################################
+# File Permission Settings
+################################################################################
+# Critical system files permissions
+hardening_permissions_etc_passwd: "0644"
+hardening_permissions_etc_shadow: "0000"
+hardening_permissions_etc_group: "0644"
+hardening_permissions_etc_gshadow: "0000"
+hardening_permissions_etc_passwd_dash: "0600"
+hardening_permissions_etc_shadow_dash: "0600"
+hardening_permissions_etc_group_dash: "0600"
+hardening_permissions_etc_gshadow_dash: "0600"
+hardening_permissions_etc_ssh_sshd_config: "0600"
+hardening_permissions_etc_crontab: "0600"
+hardening_permissions_etc_cron_hourly: "0700"
+hardening_permissions_etc_cron_daily: "0700"
+hardening_permissions_etc_cron_weekly: "0700"
+hardening_permissions_etc_cron_monthly: "0700"
+hardening_permissions_etc_cron_d: "0700"
+hardening_permissions_var_log: "0750"
+
+# SSH key file permissions
+hardening_permissions_ssh_private_keys: "0600"
+hardening_permissions_ssh_public_keys: "0644"
+
+# Set owner and group for critical files
+hardening_permissions_root_owned_files:
+  - /etc/passwd
+  - /etc/shadow
+  - /etc/group
+  - /etc/gshadow
+  - /etc/ssh/sshd_config
+  - /etc/crontab
+  - /etc/cron.hourly
+  - /etc/cron.daily
+  - /etc/cron.weekly
+  - /etc/cron.monthly
+  - /etc/cron.d
+
+# Directories to check for world-writable files
+hardening_permissions_check_world_writable: true
+hardening_permissions_world_writable_exclude:
+  - /tmp
+  - /var/tmp
+
+# Find and remove unowned files
+hardening_permissions_check_unowned: true
+
+# SUID/SGID binaries to remove (leave empty to skip)
+hardening_permissions_remove_suid: []
+hardening_permissions_remove_sgid: []
+
+################################################################################
+# Filesystem Hardening
+################################################################################
+# Enable/disable filesystem hardening for specific mount points
+hardening_filesystem_harden_tmp: true
+hardening_filesystem_harden_var_tmp: true
+hardening_filesystem_harden_home: true
+hardening_filesystem_harden_dev_shm: true
+
+# Bind mount /var/tmp to /tmp if no separate partition exists
+hardening_filesystem_var_tmp_bind_mount: true
+
+# Sticky bit configuration
+hardening_filesystem_set_sticky_bit: true
+hardening_filesystem_fix_world_writable: true
+
+# Disable automounting (autofs service)
+hardening_filesystem_disable_automount: true
+
+# Individual filesystem module control
+# WARNING: vfat may be required for UEFI boot partitions
+hardening_filesystem_disable_vfat: false
+
+################################################################################
+# Mount Options
+################################################################################
+hardening_mount_options_tmp:
+  - nodev
+  - nosuid
+  - noexec
+
+hardening_mount_options_var_tmp:
+  - nodev
+  - nosuid
+  - noexec
+
+hardening_mount_options_home:
+  - nodev
+  - nosuid
+
+hardening_mount_options_dev_shm:
+  - nodev
+  - nosuid
+  - noexec
+
+hardening_mount_options_var_log:
+  - nodev
+  - nosuid
+  - noexec
+
+hardening_mount_options_var_log_audit:
+  - nodev
+  - nosuid
+  - noexec
+
+################################################################################
+# Miscellaneous Settings
+################################################################################
+# Login banner
+hardening_banner_enabled: true
+hardening_banner_text: |
+  ***************************************************************************
+                              AUTHORIZED USE ONLY
+  ***************************************************************************
+  This system is for authorized users only. By using this system, you consent
+  to monitoring, recording, and auditing of all activities. Unauthorized use
+  is prohibited and may result in criminal prosecution.
+  ***************************************************************************
+
+# MOTD (Message of the Day)
+hardening_motd_enabled: false
+hardening_motd_text: ""
+
+# Core dumps
+hardening_disable_core_dumps: true
+
+# USB storage
+hardening_disable_usb_storage: true
+
+# Ctrl+Alt+Del reboot
+hardening_disable_ctrl_alt_del: true
+
+# Single user mode authentication
+hardening_single_user_auth: true
+
+# Automatic logout timeout (in seconds, 0 to disable)
+hardening_tmout: 900
+
+# Umask settings
+hardening_umask_default: "027"
+hardening_umask_root: "077"
+
+################################################################################
+# Account Security Settings
+################################################################################
+# Root account hardening
+lock_root_password: true
+verify_single_uid_zero: true
+fail_on_empty_passwords: true
+fail_on_legacy_entries: true
+
+# Shell timeout (auto-logout)
+shell_timeout: 900
+
+# Default umask for users
+default_umask: "027"
+
+# Secure PATH (no . or world-writable directories)
+secure_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Unnecessary user accounts to remove
+default_unnecessary_users:
+  - games
+  - ftp
+  - news
+  - gopher
+
+# System accounts that should have nologin shell
+default_system_accounts_nologin:
+  - bin
+  - daemon
+  - adm
+  - lp
+  - sync
+  - shutdown
+  - halt
+  - mail
+  - operator
+  - nobody
+  - systemd-coredump
+
+# Override lists (empty by default, set in playbook/inventory)
+unnecessary_users: []
+system_accounts_nologin: []
+
+################################################################################
+# Security Package Settings
+################################################################################
+# Default security packages to install
+default_security_packages:
+  - aide
+  - libpwquality
+  - policycoreutils-python-utils
+  - rsyslog
+  - audit
+  - audit-libs
+
+# Override list (empty by default, set in playbook/inventory)
+security_packages: []
+
+# Packages to remove (security/compliance reasons)
+default_packages_to_remove:
+  - telnet
+  - telnet-server
+  - rsh
+  - rsh-server
+  - ypbind
+  - ypserv
+  - tftp
+  - tftp-server
+  - talk
+  - talk-server
+  - xinetd
+  - setroubleshoot
+  - mcstrans
+  - prelink
+
+# Override list (empty by default, set in playbook/inventory)
+packages_to_remove: []
+remove_unnecessary_packages: true
+
+# DNF/YUM configuration
+dnf_repo_gpgcheck: 0
+configure_repo_gpgcheck: true
+enforce_repo_gpgcheck: true
+
+# AIDE configuration
+initialize_aide_db: false
+
+# Automatic security updates
+enable_automatic_updates: false
+auto_apply_updates: false

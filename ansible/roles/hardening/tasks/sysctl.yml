@@ -1,0 +1,79 @@
+---
+# Kernel parameters hardening
+
+- name: Configure network security parameters
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-hardening.conf
+    reload: true
+  loop:
+    # IPv4 network security
+    - { name: 'net.ipv4.ip_forward', value: "{{ hardening_sysctl_net_ipv4_ip_forward | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.all.send_redirects', value: "{{ hardening_sysctl_net_ipv4_conf_all_send_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.default.send_redirects', value: "{{ hardening_sysctl_net_ipv4_conf_default_send_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.all.accept_source_route', value: "{{ hardening_sysctl_net_ipv4_conf_all_accept_source_route | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.default.accept_source_route', value: "{{ hardening_sysctl_net_ipv4_conf_default_accept_source_route | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.all.accept_redirects', value: "{{ hardening_sysctl_net_ipv4_conf_all_accept_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.default.accept_redirects', value: "{{ hardening_sysctl_net_ipv4_conf_default_accept_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.all.secure_redirects', value: "{{ hardening_sysctl_net_ipv4_conf_all_secure_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.default.secure_redirects', value: "{{ hardening_sysctl_net_ipv4_conf_default_secure_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.all.log_martians', value: "{{ hardening_sysctl_net_ipv4_conf_all_log_martians | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.default.log_martians', value: "{{ hardening_sysctl_net_ipv4_conf_default_log_martians | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.icmp_echo_ignore_broadcasts', value: "{{ hardening_sysctl_net_ipv4_icmp_echo_ignore_broadcasts | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.icmp_ignore_bogus_error_responses', value: "{{ hardening_sysctl_net_ipv4_icmp_ignore_bogus_error_responses | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.all.rp_filter', value: "{{ hardening_sysctl_net_ipv4_conf_all_rp_filter | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.conf.default.rp_filter', value: "{{ hardening_sysctl_net_ipv4_conf_default_rp_filter | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.tcp_syncookies', value: "{{ hardening_sysctl_net_ipv4_tcp_syncookies | ternary('1', '0') }}" }
+    - { name: 'net.ipv4.tcp_timestamps', value: "{{ hardening_sysctl_net_ipv4_tcp_timestamps | ternary('1', '0') }}" }
+  notify: reload sysctl
+
+- name: Configure IPv6 security parameters
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-hardening.conf
+    reload: true
+  loop:
+    - { name: 'net.ipv6.conf.all.accept_ra', value: "{{ hardening_sysctl_net_ipv6_conf_all_accept_ra | ternary('1', '0') }}" }
+    - { name: 'net.ipv6.conf.default.accept_ra', value: "{{ hardening_sysctl_net_ipv6_conf_default_accept_ra | ternary('1', '0') }}" }
+    - { name: 'net.ipv6.conf.all.accept_redirects', value: "{{ hardening_sysctl_net_ipv6_conf_all_accept_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv6.conf.default.accept_redirects', value: "{{ hardening_sysctl_net_ipv6_conf_default_accept_redirects | ternary('1', '0') }}" }
+    - { name: 'net.ipv6.conf.all.accept_source_route', value: "{{ hardening_sysctl_net_ipv6_conf_all_accept_source_route | ternary('1', '0') }}" }
+    - { name: 'net.ipv6.conf.default.accept_source_route', value: "{{ hardening_sysctl_net_ipv6_conf_default_accept_source_route | ternary('1', '0') }}" }
+  when: not hardening_sysctl_net_ipv6_conf_all_disable_ipv6
+  notify: reload sysctl
+
+- name: Configure kernel security parameters
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-hardening.conf
+    reload: true
+  loop:
+    - { name: 'kernel.randomize_va_space', value: "{{ hardening_sysctl_kernel_randomize_va_space }}" }
+    - { name: 'kernel.kptr_restrict', value: "{{ hardening_sysctl_kernel_kptr_restrict }}" }
+    - { name: 'kernel.dmesg_restrict', value: "{{ hardening_sysctl_kernel_dmesg_restrict | ternary('1', '0') }}" }
+    - { name: 'kernel.perf_event_paranoid', value: "{{ hardening_sysctl_kernel_perf_event_paranoid }}" }
+    - { name: 'kernel.yama.ptrace_scope', value: "{{ hardening_sysctl_kernel_yama_ptrace_scope }}" }
+    - { name: 'kernel.core_uses_pid', value: "{{ hardening_sysctl_kernel_core_uses_pid | ternary('1', '0') }}" }
+    - { name: 'kernel.sysrq', value: "{{ hardening_sysctl_kernel_sysrq }}" }
+  notify: reload sysctl
+
+- name: Configure filesystem security parameters
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-hardening.conf
+    reload: true
+  loop:
+    - { name: 'fs.suid_dumpable', value: "{{ hardening_sysctl_fs_suid_dumpable }}" }
+    - { name: 'fs.protected_hardlinks', value: "{{ hardening_sysctl_fs_protected_hardlinks | ternary('1', '0') }}" }
+    - { name: 'fs.protected_symlinks', value: "{{ hardening_sysctl_fs_protected_symlinks | ternary('1', '0') }}" }
+    - { name: 'fs.protected_fifos', value: "{{ hardening_sysctl_fs_protected_fifos }}" }
+    - { name: 'fs.protected_regular', value: "{{ hardening_sysctl_fs_protected_regular }}" }
+  notify: reload sysctl

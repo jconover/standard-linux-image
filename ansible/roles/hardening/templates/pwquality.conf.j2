@@ -1,0 +1,45 @@
+# {{ ansible_managed }}
+# CIS Benchmark Compliant Password Quality Configuration
+#
+# See pwquality.conf(5) man page for more information
+
+# Minimum acceptable size for the new password
+minlen = {{ hardening_password_min_length }}
+
+# The minimum number of required classes of characters for the new password
+# (digits, uppercase, lowercase, others)
+minclass = {{ hardening_password_min_class }}
+
+# The maximum credit for having digits in the new password
+# Negative value means minimum required
+dcredit = -{{ hardening_password_require_digits }}
+
+# The maximum credit for having uppercase characters in the new password
+# Negative value means minimum required
+ucredit = -{{ hardening_password_require_uppercase }}
+
+# The maximum credit for having lowercase characters in the new password
+# Negative value means minimum required
+lcredit = -{{ hardening_password_require_lowercase }}
+
+# The maximum credit for having other characters in the new password
+# Negative value means minimum required
+ocredit = -{{ hardening_password_require_special }}
+
+# The maximum number of allowed consecutive same characters in the new password
+maxrepeat = {{ hardening_password_max_repeat }}
+
+# The maximum number of allowed consecutive characters of the same class
+maxclassrepeat = {{ hardening_password_max_class_repeat }}
+
+# Whether to check for the words from the cracklib dictionary
+dictcheck = {{ 1 if hardening_password_dictcheck else 0 }}
+
+# Reject passwords containing the user name
+usercheck = {{ 1 if hardening_password_usercheck else 0 }}
+
+# Enforce password complexity even for root
+enforcing = {{ 1 if hardening_password_enforcing else 0 }}
+
+# Path to the cracklib dictionaries
+# dictpath =

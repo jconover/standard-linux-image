@@ -1,0 +1,210 @@
+# {{ ansible_managed }}
+# CIS Benchmark Kernel Parameter Hardening
+# Deployed by Ansible - Do not edit manually
+
+{% if sysctl_network_hardening | default(true) %}
+#############################
+# Network Security Settings #
+#############################
+
+# Disable IP forwarding (CIS 3.1.1)
+{% if hardening_sysctl_net_ipv4_ip_forward | default(false) %}
+net.ipv4.ip_forward = 1
+{% else %}
+net.ipv4.ip_forward = 0
+{% endif %}
+
+# Disable sending ICMP redirects (CIS 3.1.2)
+{% if hardening_sysctl_net_ipv4_conf_all_send_redirects | default(false) %}
+net.ipv4.conf.all.send_redirects = 1
+{% else %}
+net.ipv4.conf.all.send_redirects = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv4_conf_default_send_redirects | default(false) %}
+net.ipv4.conf.default.send_redirects = 1
+{% else %}
+net.ipv4.conf.default.send_redirects = 0
+{% endif %}
+
+# Disable source routed packets (CIS 3.2.1)
+{% if hardening_sysctl_net_ipv4_conf_all_accept_source_route | default(false) %}
+net.ipv4.conf.all.accept_source_route = 1
+{% else %}
+net.ipv4.conf.all.accept_source_route = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv4_conf_default_accept_source_route | default(false) %}
+net.ipv4.conf.default.accept_source_route = 1
+{% else %}
+net.ipv4.conf.default.accept_source_route = 0
+{% endif %}
+
+# Disable ICMP redirect acceptance (CIS 3.2.2)
+{% if hardening_sysctl_net_ipv4_conf_all_accept_redirects | default(false) %}
+net.ipv4.conf.all.accept_redirects = 1
+{% else %}
+net.ipv4.conf.all.accept_redirects = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv4_conf_default_accept_redirects | default(false) %}
+net.ipv4.conf.default.accept_redirects = 1
+{% else %}
+net.ipv4.conf.default.accept_redirects = 0
+{% endif %}
+
+# Disable secure ICMP redirect acceptance (CIS 3.2.3)
+{% if hardening_sysctl_net_ipv4_conf_all_secure_redirects | default(false) %}
+net.ipv4.conf.all.secure_redirects = 1
+{% else %}
+net.ipv4.conf.all.secure_redirects = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv4_conf_default_secure_redirects | default(false) %}
+net.ipv4.conf.default.secure_redirects = 1
+{% else %}
+net.ipv4.conf.default.secure_redirects = 0
+{% endif %}
+
+# Log suspicious packets (CIS 3.2.4)
+{% if hardening_sysctl_net_ipv4_conf_all_log_martians | default(true) %}
+net.ipv4.conf.all.log_martians = 1
+{% else %}
+net.ipv4.conf.all.log_martians = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv4_conf_default_log_martians | default(true) %}
+net.ipv4.conf.default.log_martians = 1
+{% else %}
+net.ipv4.conf.default.log_martians = 0
+{% endif %}
+
+# Ignore broadcast ICMP echo requests (CIS 3.2.5)
+{% if hardening_sysctl_net_ipv4_icmp_echo_ignore_broadcasts | default(true) %}
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+{% else %}
+net.ipv4.icmp_echo_ignore_broadcasts = 0
+{% endif %}
+
+# Ignore bogus ICMP error responses (CIS 3.2.6)
+{% if hardening_sysctl_net_ipv4_icmp_ignore_bogus_error_responses | default(true) %}
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+{% else %}
+net.ipv4.icmp_ignore_bogus_error_responses = 0
+{% endif %}
+
+# Enable reverse path filtering (CIS 3.2.7)
+{% if hardening_sysctl_net_ipv4_conf_all_rp_filter | default(true) %}
+net.ipv4.conf.all.rp_filter = 1
+{% else %}
+net.ipv4.conf.all.rp_filter = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv4_conf_default_rp_filter | default(true) %}
+net.ipv4.conf.default.rp_filter = 1
+{% else %}
+net.ipv4.conf.default.rp_filter = 0
+{% endif %}
+
+# Enable TCP SYN cookies (CIS 3.2.8)
+{% if hardening_sysctl_net_ipv4_tcp_syncookies | default(true) %}
+net.ipv4.tcp_syncookies = 1
+{% else %}
+net.ipv4.tcp_syncookies = 0
+{% endif %}
+
+{% endif %}
+{% if sysctl_ipv6_hardening | default(true) %}
+#######################
+# IPv6 Security       #
+#######################
+
+# Disable IPv6 router advertisements (CIS 3.3.1)
+{% if hardening_sysctl_net_ipv6_conf_all_accept_ra | default(false) %}
+net.ipv6.conf.all.accept_ra = 1
+{% else %}
+net.ipv6.conf.all.accept_ra = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv6_conf_default_accept_ra | default(false) %}
+net.ipv6.conf.default.accept_ra = 1
+{% else %}
+net.ipv6.conf.default.accept_ra = 0
+{% endif %}
+
+# Disable IPv6 ICMP redirect acceptance (CIS 3.3.2)
+{% if hardening_sysctl_net_ipv6_conf_all_accept_redirects | default(false) %}
+net.ipv6.conf.all.accept_redirects = 1
+{% else %}
+net.ipv6.conf.all.accept_redirects = 0
+{% endif %}
+{% if hardening_sysctl_net_ipv6_conf_default_accept_redirects | default(false) %}
+net.ipv6.conf.default.accept_redirects = 1
+{% else %}
+net.ipv6.conf.default.accept_redirects = 0
+{% endif %}
+
+{% endif %}
+{% if sysctl_disable_ipv6 | default(false) or hardening_sysctl_net_ipv6_conf_all_disable_ipv6 | default(false) %}
+# Disable IPv6 completely (CIS 3.3.3)
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+
+{% endif %}
+{% if sysctl_kernel_hardening | default(true) %}
+#############################
+# Kernel Security Settings  #
+#############################
+
+# Enable Address Space Layout Randomization (ASLR) (CIS 1.5.3)
+kernel.randomize_va_space = {{ hardening_sysctl_kernel_randomize_va_space | default(2) }}
+
+# Restrict access to kernel logs (CIS 1.5.2)
+{% if hardening_sysctl_kernel_dmesg_restrict | default(true) %}
+kernel.dmesg_restrict = 1
+{% else %}
+kernel.dmesg_restrict = 0
+{% endif %}
+
+# Restrict kernel pointer exposure (CIS 1.5.1)
+kernel.kptr_restrict = {{ hardening_sysctl_kernel_kptr_restrict | default(2) }}
+
+# Restrict ptrace scope (Yama LSM)
+kernel.yama.ptrace_scope = {{ hardening_sysctl_kernel_yama_ptrace_scope | default(1) }}
+
+# Disable core dumps for SUID programs (CIS 1.5.1)
+fs.suid_dumpable = {{ hardening_sysctl_fs_suid_dumpable | default(0) }}
+
+# Additional kernel hardening
+{% if hardening_sysctl_kernel_perf_event_paranoid is defined %}
+kernel.perf_event_paranoid = {{ hardening_sysctl_kernel_perf_event_paranoid }}
+{% endif %}
+
+{% if hardening_sysctl_kernel_sysrq is defined %}
+kernel.sysrq = {{ hardening_sysctl_kernel_sysrq }}
+{% endif %}
+
+{% if hardening_sysctl_kernel_unprivileged_bpf_disabled | default(true) %}
+kernel.unprivileged_bpf_disabled = 1
+{% endif %}
+
+{% if hardening_sysctl_kernel_kexec_load_disabled | default(true) %}
+kernel.kexec_load_disabled = 1
+{% endif %}
+
+{% if hardening_sysctl_kernel_core_uses_pid | default(true) %}
+kernel.core_uses_pid = 1
+{% endif %}
+
+# File system hardening
+{% if hardening_sysctl_fs_protected_hardlinks | default(true) %}
+fs.protected_hardlinks = 1
+{% endif %}
+
+{% if hardening_sysctl_fs_protected_symlinks | default(true) %}
+fs.protected_symlinks = 1
+{% endif %}
+
+{% if hardening_sysctl_fs_protected_fifos is defined %}
+fs.protected_fifos = {{ hardening_sysctl_fs_protected_fifos }}
+{% endif %}
+
+{% if hardening_sysctl_fs_protected_regular is defined %}
+fs.protected_regular = {{ hardening_sysctl_fs_protected_regular }}
+{% endif %}
+
+{% endif %}

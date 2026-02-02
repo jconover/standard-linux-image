@@ -1,0 +1,333 @@
+---
+# CIS Benchmark Account Security Hardening Tasks
+
+# =============================================================================
+# Root Account Hardening
+# =============================================================================
+
+# Lock root password for direct login (SSH key access via sudo only)
+- name: Lock root account for direct password login
+  ansible.builtin.user:
+    name: root
+    password_lock: true
+  when: lock_root_password | default(true)
+
+# Ensure root has GID 0
+- name: Ensure default group for root is GID 0
+  ansible.builtin.user:
+    name: root
+    group: root
+
+# Check for other UID 0 accounts
+- name: Get all accounts with UID 0
+  ansible.builtin.shell:
+    cmd: "awk -F: '($3 == 0) { print $1 }' /etc/passwd"
+  register: uid_zero_accounts
+  changed_when: false
+  check_mode: false
+
+- name: Verify root is the only UID 0 account
+  ansible.builtin.assert:
+    that:
+      - uid_zero_accounts.stdout_lines | length == 1
+      - uid_zero_accounts.stdout_lines[0] == 'root'
+    fail_msg: "Found non-root accounts with UID 0: {{ uid_zero_accounts.stdout_lines | difference(['root']) | join(', ') }}"
+    success_msg: "Only root has UID 0"
+  when: verify_single_uid_zero | default(true)
+
+# =============================================================================
+# Password Aging and Login Definitions
+# =============================================================================
+
+- name: Set password aging controls in login.defs
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^PASS_MAX_DAYS', line: 'PASS_MAX_DAYS {{ hardening_password_max_age }}' }
+    - { regexp: '^PASS_MIN_DAYS', line: 'PASS_MIN_DAYS {{ hardening_password_min_age }}' }
+    - { regexp: '^PASS_WARN_AGE', line: 'PASS_WARN_AGE {{ hardening_password_warn_age }}' }
+    - { regexp: '^PASS_MIN_LEN', line: 'PASS_MIN_LEN {{ hardening_password_min_length }}' }
+    - { regexp: '^ENCRYPT_METHOD', line: 'ENCRYPT_METHOD {{ hardening_password_encrypt_method }}' }
+    - { regexp: '^SHA_CRYPT_MIN_ROUNDS', line: 'SHA_CRYPT_MIN_ROUNDS {{ hardening_password_sha_crypt_min_rounds }}' }
+    - { regexp: '^SHA_CRYPT_MAX_ROUNDS', line: 'SHA_CRYPT_MAX_ROUNDS {{ hardening_password_sha_crypt_max_rounds }}' }
+
+- name: Set default umask in login.defs
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^UMASK'
+    line: 'UMASK {{ hardening_umask_default }}'
+    state: present
+
+- name: Set INACTIVE days for password expiration
+  ansible.builtin.lineinfile:
+    path: /etc/default/useradd
+    regexp: '^INACTIVE='
+    line: 'INACTIVE={{ hardening_password_inactive_days }}'
+    state: present
+
+# =============================================================================
+# Empty Password Check
+# =============================================================================
+
+- name: Check for accounts with empty passwords
+  ansible.builtin.shell:
+    cmd: "awk -F: '($2 == \"\") { print $1 }' /etc/shadow"
+  register: empty_password_accounts
+  changed_when: false
+  check_mode: false
+
+- name: Fail if accounts have empty passwords
+  ansible.builtin.fail:
+    msg: "Accounts with empty passwords found: {{ empty_password_accounts.stdout_lines | join(', ') }}"
+  when:
+    - empty_password_accounts.stdout_lines | length > 0
+    - fail_on_empty_passwords | default(true)
+
+# =============================================================================
+# Legacy Entries Check (+ entries in passwd/shadow/group)
+# =============================================================================
+
+- name: Check for legacy + entries in /etc/passwd
+  ansible.builtin.shell:
+    cmd: "grep '^\\+:' /etc/passwd || true"
+  register: legacy_passwd
+  changed_when: false
+  check_mode: false
+
+- name: Check for legacy + entries in /etc/shadow
+  ansible.builtin.shell:
+    cmd: "grep '^\\+:' /etc/shadow || true"
+  register: legacy_shadow
+  changed_when: false
+  check_mode: false
+
+- name: Check for legacy + entries in /etc/group
+  ansible.builtin.shell:
+    cmd: "grep '^\\+:' /etc/group || true"
+  register: legacy_group
+  changed_when: false
+  check_mode: false
+
+- name: Fail if legacy + entries found
+  ansible.builtin.fail:
+    msg: >
+      Legacy '+' entries found in system files.
+      /etc/passwd: {{ legacy_passwd.stdout | default('none') }}
+      /etc/shadow: {{ legacy_shadow.stdout | default('none') }}
+      /etc/group: {{ legacy_group.stdout | default('none') }}
+  when:
+    - (legacy_passwd.stdout | length > 0) or
+      (legacy_shadow.stdout | length > 0) or
+      (legacy_group.stdout | length > 0)
+    - fail_on_legacy_entries | default(true)
+
+# =============================================================================
+# Shell Timeout Configuration
+# =============================================================================
+
+- name: Ensure /etc/profile.d directory exists
+  ansible.builtin.file:
+    path: /etc/profile.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure shell timeout (TMOUT)
+  ansible.builtin.copy:
+    dest: /etc/profile.d/timeout.sh
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Shell timeout - Auto logout after inactivity
+      # CIS Benchmark compliant
+      TMOUT={{ hardening_tmout | default(900) }}
+      readonly TMOUT
+      export TMOUT
+  when: hardening_tmout | default(900) > 0
+
+# =============================================================================
+# Default Umask Configuration
+# =============================================================================
+
+- name: Set default umask in /etc/bashrc
+  ansible.builtin.lineinfile:
+    path: /etc/bashrc
+    regexp: '^\s*umask\s+'
+    line: "umask {{ hardening_umask_default | default('027') }}"
+    state: present
+    backup: true
+
+- name: Set default umask in /etc/profile
+  ansible.builtin.lineinfile:
+    path: /etc/profile
+    regexp: '^\s*umask\s+'
+    line: "umask {{ hardening_umask_default | default('027') }}"
+    state: present
+    backup: true
+
+- name: Ensure root account has correct umask in bashrc
+  ansible.builtin.lineinfile:
+    path: /root/.bashrc
+    regexp: '^umask'
+    line: 'umask {{ hardening_umask_root }}'
+    state: present
+
+# Ensure umask is set for all profiles
+- name: Configure umask in /etc/profile.d/umask.sh
+  ansible.builtin.copy:
+    dest: /etc/profile.d/umask.sh
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Default umask for all users
+      # CIS Benchmark compliant
+      umask {{ hardening_umask_default | default('027') }}
+
+# =============================================================================
+# Secure PATH Configuration
+# =============================================================================
+
+- name: Configure secure PATH in /etc/profile.d/path.sh
+  ansible.builtin.copy:
+    dest: /etc/profile.d/path.sh
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Secure PATH configuration
+      # Ensures no current directory (.) or world-writable directories in PATH
+      # CIS Benchmark compliant
+      PATH={{ secure_path | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin') }}
+      export PATH
+
+# Check for insecure PATH entries
+- name: Check root PATH for insecure entries
+  ansible.builtin.shell:
+    cmd: |
+      echo $PATH | tr ':' '\n' | while read dir; do
+        # Check for current directory
+        if [ "$dir" = "." ] || [ "$dir" = "" ]; then
+          echo "INSECURE: Current directory in PATH"
+        fi
+        # Check for world-writable directories
+        if [ -d "$dir" ] && [ -w "$dir" ] && [ "$(stat -c '%a' "$dir" 2>/dev/null | cut -c3)" = "7" ]; then
+          echo "INSECURE: World-writable directory in PATH: $dir"
+        fi
+      done
+  register: path_check
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Warn about insecure PATH entries
+  ansible.builtin.debug:
+    msg: "WARNING: {{ path_check.stdout_lines }}"
+  when: path_check.stdout_lines | length > 0
+
+# =============================================================================
+# Remove Unnecessary User Accounts
+# =============================================================================
+
+- name: Get list of existing users
+  ansible.builtin.getent:
+    database: passwd
+  register: existing_users
+
+- name: Remove unnecessary user accounts
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: true
+  loop: "{{ unnecessary_users if unnecessary_users | length > 0 else default_unnecessary_users }}"
+  when: item in existing_users.ansible_facts.getent_passwd
+  failed_when: false
+
+# =============================================================================
+# Shell Validation for User Accounts
+# =============================================================================
+
+- name: Get list of valid shells
+  ansible.builtin.shell:
+    cmd: "cat /etc/shells"
+  register: valid_shells
+  changed_when: false
+  check_mode: false
+
+- name: Check for users with invalid shells
+  ansible.builtin.shell:
+    cmd: |
+      while IFS=: read -r username _ _ _ _ _ shell; do
+        # Skip system accounts with nologin/false shells
+        if [ "$shell" = "/sbin/nologin" ] || [ "$shell" = "/usr/sbin/nologin" ] || \
+           [ "$shell" = "/bin/false" ] || [ "$shell" = "/usr/bin/false" ]; then
+          continue
+        fi
+        # Check if shell is valid
+        if [ -n "$shell" ] && ! grep -q "^${shell}$" /etc/shells 2>/dev/null; then
+          echo "$username:$shell"
+        fi
+      done < /etc/passwd
+  register: invalid_shell_users
+  changed_when: false
+  check_mode: false
+
+- name: Report users with invalid shells
+  ansible.builtin.debug:
+    msg: "Users with invalid shells: {{ invalid_shell_users.stdout_lines }}"
+  when: invalid_shell_users.stdout_lines | length > 0
+
+# =============================================================================
+# System Account Shell Hardening
+# =============================================================================
+
+- name: Ensure system accounts have nologin shell
+  ansible.builtin.user:
+    name: "{{ item }}"
+    shell: /sbin/nologin
+  loop: "{{ system_accounts_nologin if system_accounts_nologin | length > 0 else default_system_accounts_nologin }}"
+  failed_when: false
+
+# =============================================================================
+# Security Controls
+# =============================================================================
+
+- name: Disable Ctrl+Alt+Del reboot
+  ansible.builtin.systemd:
+    name: ctrl-alt-del.target
+    masked: true
+  when: hardening_disable_ctrl_alt_del | default(true)
+
+- name: Ensure single user mode requires authentication
+  ansible.builtin.lineinfile:
+    path: /usr/lib/systemd/system/rescue.service
+    regexp: '^ExecStart='
+    line: 'ExecStart=-/usr/lib/systemd/systemd-sulogin-shell rescue'
+    state: present
+  when: hardening_single_user_auth | default(true)
+
+- name: Ensure emergency mode requires authentication
+  ansible.builtin.lineinfile:
+    path: /usr/lib/systemd/system/emergency.service
+    regexp: '^ExecStart='
+    line: 'ExecStart=-/usr/lib/systemd/systemd-sulogin-shell emergency'
+    state: present
+  when: hardening_single_user_auth | default(true)
+
+# =============================================================================
+# Restrict su to wheel group
+# =============================================================================
+
+- name: Restrict su command to wheel group
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^#?auth\s+required\s+pam_wheel.so'
+    line: 'auth           required        pam_wheel.so use_uid'
+    insertafter: '^auth\s+sufficient'
+    state: present
+  when: hardening_restrict_su_to_wheel | default(true)

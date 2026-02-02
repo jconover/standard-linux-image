@@ -1,0 +1,47 @@
+# {{ ansible_managed }}
+# CIS Benchmark Compliant Account Lockout Configuration
+#
+# Configuration for pam_faillock module
+# See faillock.conf(5) man page for more information
+
+# Directory where the per-user files with failure records are kept
+dir = /var/run/faillock
+
+# If a group name is specified with this option, members of the group will
+# be handled by this module the same as the root account
+# admin_group = <admin_group_name>
+
+# Deny access if the number of consecutive authentication failures for this
+# user during the recent interval exceeds this value
+deny = {{ hardening_lockout_fail_count }}
+
+# The length of the interval during which the consecutive authentication
+# failures must happen for the user account lock out
+fail_interval = {{ hardening_lockout_fail_interval }}
+
+# The access will be re-enabled after this number of seconds after the lock out
+# 0 = the access is enabled only by a manual intervention of the system administrator
+unlock_time = {{ hardening_lockout_unlock_time }}
+
+# Only track failed user authentications attempts for local users in /etc/passwd
+# and ignore centralized (AD, IdM, LDAP, etc.) users
+# local_users_only
+
+# Don't print informative messages about account being locked
+silent
+
+# Don't log informative messages via syslog about account being locked
+# no_log_info
+
+# Root account can become locked as well
+{% if hardening_lockout_even_deny_root %}
+even_deny_root
+root_unlock_time = {{ hardening_lockout_root_unlock_time }}
+{% else %}
+# even_deny_root
+# root_unlock_time = {{ hardening_lockout_root_unlock_time }}
+{% endif %}
+
+# If this option is set, the module will not fail when it cannot open
+# the file containing the failure records for the user
+# audit

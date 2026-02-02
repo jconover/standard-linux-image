@@ -1,0 +1,232 @@
+---
+# CIS Benchmark Filesystem Hardening Tasks
+
+# =============================================================================
+# Disable Uncommon Filesystems (CIS 1.1.1.x)
+# =============================================================================
+
+- name: Deploy modprobe blacklist for uncommon filesystems
+  ansible.builtin.template:
+    src: disable-filesystems.conf.j2
+    dest: /etc/modprobe.d/disable-filesystems.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# =============================================================================
+# Configure Mount Options for Special Partitions (CIS 1.1.x)
+# =============================================================================
+
+# Check if /tmp is a separate partition
+- name: Check if /tmp is a separate partition
+  ansible.builtin.shell: |
+    set -o pipefail
+    findmnt -n /tmp 2>/dev/null || true
+  register: tmp_partition
+  changed_when: false
+  failed_when: false
+
+# Check if /var/tmp is a separate partition
+- name: Check if /var/tmp is a separate partition
+  ansible.builtin.shell: |
+    set -o pipefail
+    findmnt -n /var/tmp 2>/dev/null || true
+  register: var_tmp_partition
+  changed_when: false
+  failed_when: false
+
+# Check if /home is a separate partition
+- name: Check if /home is a separate partition
+  ansible.builtin.shell: |
+    set -o pipefail
+    findmnt -n /home 2>/dev/null || true
+  register: home_partition
+  changed_when: false
+  failed_when: false
+
+# Configure /tmp mount options if separate partition exists (CIS 1.1.2-1.1.5)
+- name: Configure /tmp mount options in fstab (separate partition)
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^(\S+\s+/tmp\s+\S+\s+)(\S+)(\s+.*)$'
+    backrefs: true
+    line: '\1defaults,{{ hardening_mount_options_tmp | join(",") }}\3'
+  when:
+    - hardening_filesystem_harden_tmp | bool
+    - tmp_partition.stdout | length > 0
+    - "'tmpfs' not in tmp_partition.stdout"
+
+# Configure /tmp as tmpfs if not a separate partition
+- name: Configure /tmp as tmpfs in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^tmpfs\s+/tmp\s+'
+    line: "tmpfs /tmp tmpfs defaults,{{ hardening_mount_options_tmp | join(',') }} 0 0"
+    state: present
+  when:
+    - hardening_filesystem_harden_tmp | bool
+    - tmp_partition.stdout | length == 0 or 'tmpfs' in tmp_partition.stdout
+
+# Configure /var/tmp mount options (CIS 1.1.6-1.1.9)
+- name: Configure /var/tmp mount options in fstab (separate partition)
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^(\S+\s+/var/tmp\s+\S+\s+)(\S+)(\s+.*)$'
+    backrefs: true
+    line: '\1defaults,{{ hardening_mount_options_var_tmp | join(",") }}\3'
+  when:
+    - hardening_filesystem_harden_var_tmp | bool
+    - var_tmp_partition.stdout | length > 0
+    - "'/tmp' not in var_tmp_partition.stdout"
+
+# Create bind mount for /var/tmp if no separate partition and bind mount enabled
+- name: Add /var/tmp bind mount to /tmp in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^/tmp\s+/var/tmp\s+'
+    line: "/tmp /var/tmp none rw,bind 0 0"
+    state: present
+  when:
+    - hardening_filesystem_var_tmp_bind_mount | bool
+    - var_tmp_partition.stdout | length == 0
+
+# Mount /var/tmp bind mount
+- name: Mount /var/tmp bind mount
+  ansible.posix.mount:
+    path: /var/tmp
+    src: /tmp
+    fstype: none
+    opts: bind
+    state: mounted
+  when:
+    - hardening_filesystem_var_tmp_bind_mount | bool
+    - var_tmp_partition.stdout | length == 0
+
+# Configure /home mount options if separate partition exists (CIS 1.1.10-1.1.12)
+- name: Configure /home mount options in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^(\S+\s+/home\s+\S+\s+)(\S+)(\s+.*)$'
+    backrefs: true
+    line: '\1defaults,{{ hardening_mount_options_home | join(",") }}\3'
+  when:
+    - hardening_filesystem_harden_home | bool
+    - home_partition.stdout | length > 0
+
+# Configure /dev/shm mount options (CIS 1.1.15-1.1.17)
+- name: Ensure /dev/shm is configured in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^tmpfs\s+/dev/shm\s+'
+    line: "tmpfs /dev/shm tmpfs defaults,{{ hardening_mount_options_dev_shm | join(',') }} 0 0"
+    state: present
+  when: hardening_filesystem_harden_dev_shm | bool
+
+# Remount /dev/shm with secure options
+- name: Remount /dev/shm with secure options
+  ansible.posix.mount:
+    path: /dev/shm
+    src: tmpfs
+    fstype: tmpfs
+    opts: "defaults,{{ hardening_mount_options_dev_shm | join(',') }}"
+    state: remounted
+  when: hardening_filesystem_harden_dev_shm | bool
+  failed_when: false
+
+# =============================================================================
+# Set Sticky Bit on World-Writable Directories (CIS 1.1.21)
+# =============================================================================
+
+- name: Ensure sticky bit is set on /tmp
+  ansible.builtin.file:
+    path: /tmp
+    mode: "o+t"
+  when: hardening_filesystem_set_sticky_bit | bool
+
+- name: Ensure sticky bit is set on /var/tmp
+  ansible.builtin.file:
+    path: /var/tmp
+    mode: "o+t"
+  when: hardening_filesystem_set_sticky_bit | bool
+
+# Find and fix world-writable directories without sticky bit
+- name: Find world-writable directories without sticky bit
+  ansible.builtin.shell: |
+    set -o pipefail
+    find / -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null || true
+  register: world_writable_dirs
+  changed_when: false
+  when: hardening_filesystem_fix_world_writable | bool
+
+- name: Set sticky bit on world-writable directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "o+t"
+  loop: "{{ world_writable_dirs.stdout_lines | default([]) }}"
+  when:
+    - hardening_filesystem_fix_world_writable | bool
+    - world_writable_dirs.stdout_lines is defined
+    - world_writable_dirs.stdout_lines | length > 0
+
+# =============================================================================
+# Disable Automounting (CIS 1.1.22)
+# =============================================================================
+
+- name: Mask autofs service to disable automounting
+  ansible.builtin.systemd:
+    name: autofs
+    state: stopped
+    enabled: false
+    masked: true
+  when: hardening_filesystem_disable_automount | bool
+  failed_when: false
+
+# =============================================================================
+# Disable Core Dumps (CIS 1.5.1)
+# =============================================================================
+
+- name: Configure hard limit for core dumps in limits.d
+  ansible.builtin.copy:
+    dest: /etc/security/limits.d/core.conf
+    content: |
+      # {{ ansible_managed }}
+      # CIS Benchmark 1.5.1 - Disable core dumps
+      * hard core 0
+    owner: root
+    group: root
+    mode: "0644"
+  when: hardening_disable_core_dumps | bool
+
+- name: Configure fs.suid_dumpable sysctl
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/50-coredump.conf
+    content: |
+      # {{ ansible_managed }}
+      # CIS Benchmark 1.5.1 - Disable core dumps for SUID programs
+      fs.suid_dumpable = 0
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+  when: hardening_disable_core_dumps | bool
+
+# =============================================================================
+# Additional Filesystem Security
+# =============================================================================
+
+# Ensure /etc/fstab permissions are correct
+- name: Ensure /etc/fstab has correct permissions
+  ansible.builtin.file:
+    path: /etc/fstab
+    owner: root
+    group: root
+    mode: "0644"
+
+# Ensure modprobe.d directory has correct permissions
+- name: Ensure /etc/modprobe.d has correct permissions
+  ansible.builtin.file:
+    path: /etc/modprobe.d
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory

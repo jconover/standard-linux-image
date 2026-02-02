@@ -1,0 +1,126 @@
+---
+# CIS Benchmark Service Hardening Tasks
+# Implements CIS benchmark controls for disabling unnecessary services,
+# removing unnecessary packages, and ensuring required services are enabled.
+
+# =============================================================================
+# Gather Service Facts
+# =============================================================================
+
+- name: Get list of installed services
+  ansible.builtin.service_facts:
+
+# =============================================================================
+# Disable Unnecessary Services
+# CIS Benchmark: Multiple controls for disabling unused services
+# =============================================================================
+
+- name: Disable and mask unnecessary services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop: "{{ hardening_disable_services }}"
+  when: item in ansible_facts.services
+  ignore_errors: true
+
+# Disable socket-activated services (may not appear in service_facts)
+- name: Disable legacy remote access socket services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop:
+    - rsh.socket
+    - rlogin.socket
+    - rexec.socket
+    - telnet.socket
+    - tftp.socket
+  ignore_errors: true
+
+# =============================================================================
+# Remove Unnecessary Packages
+# CIS Benchmark: Remove packages that provide unnecessary functionality
+# =============================================================================
+
+- name: Remove unnecessary packages (RHEL/CentOS/Fedora)
+  ansible.builtin.dnf:
+    name: "{{ hardening_remove_packages }}"
+    state: absent
+  when: ansible_os_family == "RedHat"
+  ignore_errors: true
+
+- name: Remove unnecessary packages (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: "{{ hardening_remove_packages }}"
+    state: absent
+    purge: true
+  when: ansible_os_family == "Debian"
+  ignore_errors: true
+
+# =============================================================================
+# Remove Legacy Service Packages
+# CIS Benchmark: Remove insecure legacy services
+# =============================================================================
+
+- name: Remove legacy services and packages (RHEL/CentOS)
+  ansible.builtin.dnf:
+    name:
+      - xinetd
+      - inetd
+      - telnet-server
+      - rsh-server
+      - ypbind
+      - ypserv
+      - tftp-server
+      - talk-server
+    state: absent
+  when: ansible_os_family == "RedHat"
+  ignore_errors: true
+
+- name: Remove legacy services and packages (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name:
+      - xinetd
+      - inetd
+      - openbsd-inetd
+      - telnetd
+      - rsh-server
+      - nis
+      - tftpd
+      - talk
+      - talkd
+    state: absent
+    purge: true
+  when: ansible_os_family == "Debian"
+  ignore_errors: true
+
+# =============================================================================
+# Ensure Required Services are Enabled
+# CIS Benchmark: Critical system services must be running
+# =============================================================================
+
+- name: Ensure required services are enabled and running
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: "{{ hardening_required_services }}"
+  ignore_errors: true
+
+# =============================================================================
+# Verify Service Configuration
+# =============================================================================
+
+- name: Get list of enabled services for verification
+  ansible.builtin.command: systemctl list-unit-files --type=service --state=enabled --no-pager
+  register: enabled_services
+  changed_when: false
+  check_mode: false
+
+- name: Display enabled services count
+  ansible.builtin.debug:
+    msg: "Number of enabled services: {{ enabled_services.stdout_lines | length - 1 }}"
+    verbosity: 1

@@ -1,0 +1,138 @@
+---
+# Critical file permissions
+
+- name: Set permissions on /etc/passwd
+  ansible.builtin.file:
+    path: /etc/passwd
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_etc_passwd }}"
+
+- name: Set permissions on /etc/shadow
+  ansible.builtin.file:
+    path: /etc/shadow
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_etc_shadow }}"
+
+- name: Set permissions on /etc/group
+  ansible.builtin.file:
+    path: /etc/group
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_etc_group }}"
+
+- name: Set permissions on /etc/gshadow
+  ansible.builtin.file:
+    path: /etc/gshadow
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_etc_gshadow }}"
+
+- name: Set permissions on backup password files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: '/etc/passwd-', mode: "{{ hardening_permissions_etc_passwd_dash }}" }
+    - { path: '/etc/shadow-', mode: "{{ hardening_permissions_etc_shadow_dash }}" }
+    - { path: '/etc/group-', mode: "{{ hardening_permissions_etc_group_dash }}" }
+    - { path: '/etc/gshadow-', mode: "{{ hardening_permissions_etc_gshadow_dash }}" }
+  ignore_errors: true
+
+- name: Set permissions on /etc/ssh/sshd_config
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_etc_ssh_sshd_config }}"
+
+- name: Set permissions on crontab
+  ansible.builtin.file:
+    path: /etc/crontab
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_etc_crontab }}"
+
+- name: Set permissions on cron directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+    state: directory
+  loop:
+    - { path: '/etc/cron.hourly', mode: "{{ hardening_permissions_etc_cron_hourly }}" }
+    - { path: '/etc/cron.daily', mode: "{{ hardening_permissions_etc_cron_daily }}" }
+    - { path: '/etc/cron.weekly', mode: "{{ hardening_permissions_etc_cron_weekly }}" }
+    - { path: '/etc/cron.monthly', mode: "{{ hardening_permissions_etc_cron_monthly }}" }
+    - { path: '/etc/cron.d', mode: "{{ hardening_permissions_etc_cron_d }}" }
+
+- name: Ensure /var/log has correct permissions
+  ansible.builtin.file:
+    path: /var/log
+    owner: root
+    group: root
+    mode: "{{ hardening_permissions_var_log }}"
+    state: directory
+
+- name: Restrict cron to authorized users
+  ansible.builtin.file:
+    path: /etc/cron.allow
+    state: touch
+    owner: root
+    group: root
+    mode: '0600'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Restrict at to authorized users
+  ansible.builtin.file:
+    path: /etc/at.allow
+    state: touch
+    owner: root
+    group: root
+    mode: '0600'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Remove cron.deny if exists
+  ansible.builtin.file:
+    path: /etc/cron.deny
+    state: absent
+
+- name: Remove at.deny if exists
+  ansible.builtin.file:
+    path: /etc/at.deny
+    state: absent
+
+- name: Find world-writable files
+  ansible.builtin.shell: |
+    find / -xdev -type f -perm -0002 \
+      {% for exclude in hardening_permissions_world_writable_exclude %}-not -path '{{ exclude }}/*' {% endfor %} \
+      2>/dev/null || true
+  register: world_writable_files
+  changed_when: false
+  when: hardening_permissions_check_world_writable
+
+- name: Report world-writable files
+  ansible.builtin.debug:
+    msg: "World-writable files found: {{ world_writable_files.stdout_lines }}"
+  when:
+    - hardening_permissions_check_world_writable
+    - world_writable_files.stdout_lines | length > 0
+
+- name: Find unowned files
+  ansible.builtin.shell: find / -xdev \( -nouser -o -nogroup \) 2>/dev/null || true
+  register: unowned_files
+  changed_when: false
+  when: hardening_permissions_check_unowned
+
+- name: Report unowned files
+  ansible.builtin.debug:
+    msg: "Unowned files found: {{ unowned_files.stdout_lines }}"
+  when:
+    - hardening_permissions_check_unowned
+    - unowned_files.stdout_lines | length > 0

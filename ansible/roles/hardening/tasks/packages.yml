@@ -1,0 +1,155 @@
+---
+# CIS Benchmark Security Packages Tasks
+
+# =============================================================================
+# Security Package Installation
+# =============================================================================
+
+- name: Install security packages
+  ansible.builtin.dnf:
+    name: "{{ security_packages | default(default_security_packages) }}"
+    state: present
+  register: security_packages_installed
+
+# =============================================================================
+# Package Manager Security Configuration
+# =============================================================================
+
+# Ensure gpgcheck is enabled globally
+- name: Ensure gpgcheck is enabled in /etc/dnf/dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^gpgcheck\s*='
+    line: "gpgcheck=1"
+    insertafter: '^\[main\]'
+    state: present
+    backup: true
+
+# Ensure localpkg_gpgcheck is enabled
+- name: Ensure localpkg_gpgcheck is enabled in /etc/dnf/dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^localpkg_gpgcheck\s*='
+    line: "localpkg_gpgcheck=1"
+    insertafter: '^gpgcheck'
+    state: present
+
+# Ensure repo_gpgcheck is enabled (verify repository metadata signatures)
+- name: Ensure repo_gpgcheck is enabled in /etc/dnf/dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^repo_gpgcheck\s*='
+    line: "repo_gpgcheck={{ dnf_repo_gpgcheck | default(0) }}"
+    insertafter: '^localpkg_gpgcheck'
+    state: present
+  when: configure_repo_gpgcheck | default(true)
+
+# Clean requirements on remove to avoid orphaned dependencies
+- name: Configure clean_requirements_on_remove in /etc/dnf/dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^clean_requirements_on_remove\s*='
+    line: "clean_requirements_on_remove=1"
+    insertafter: '^\[main\]'
+    state: present
+
+# =============================================================================
+# Enable gpgcheck for All Repositories
+# =============================================================================
+
+- name: Find all repo files
+  ansible.builtin.find:
+    paths: /etc/yum.repos.d
+    patterns: "*.repo"
+  register: repo_files
+
+- name: Ensure gpgcheck is enabled in all repositories
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^gpgcheck\s*='
+    line: "gpgcheck=1"
+    state: present
+    backup: true
+  loop: "{{ repo_files.files }}"
+  when: enforce_repo_gpgcheck | default(true)
+
+# =============================================================================
+# Remove Unnecessary/Insecure Packages
+# =============================================================================
+
+- name: Remove unnecessary packages
+  ansible.builtin.dnf:
+    name: "{{ packages_to_remove | default(default_packages_to_remove) }}"
+    state: absent
+    autoremove: true
+  when: remove_unnecessary_packages | default(true)
+
+# =============================================================================
+# AIDE (File Integrity Monitoring) Configuration
+# =============================================================================
+
+- name: Check if AIDE database exists
+  ansible.builtin.stat:
+    path: /var/lib/aide/aide.db.gz
+  register: aide_db
+
+- name: Initialize AIDE database
+  ansible.builtin.command:
+    cmd: aide --init
+  when:
+    - "'aide' in (security_packages | default(default_security_packages))"
+    - not aide_db.stat.exists
+    - initialize_aide_db | default(false)
+  register: aide_init
+  changed_when: aide_init.rc == 0
+
+- name: Move AIDE new database to active
+  ansible.builtin.command:
+    cmd: mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+  when:
+    - aide_init is defined
+    - aide_init.changed
+  changed_when: true
+
+# =============================================================================
+# Configure Automatic Security Updates (Optional)
+# =============================================================================
+
+- name: Install dnf-automatic for security updates
+  ansible.builtin.dnf:
+    name: dnf-automatic
+    state: present
+  when: enable_automatic_updates | default(false)
+
+- name: Configure dnf-automatic for security updates only
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/automatic.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - regexp: '^upgrade_type\s*='
+      line: "upgrade_type = security"
+    - regexp: '^apply_updates\s*='
+      line: "apply_updates = {{ 'yes' if auto_apply_updates | default(false) else 'no' }}"
+    - regexp: '^download_updates\s*='
+      line: "download_updates = yes"
+  when: enable_automatic_updates | default(false)
+
+- name: Enable dnf-automatic timer
+  ansible.builtin.systemd:
+    name: dnf-automatic.timer
+    state: started
+    enabled: true
+  when: enable_automatic_updates | default(false)
+
+# =============================================================================
+# Ensure rsyslog is Configured
+# =============================================================================
+
+- name: Ensure rsyslog is enabled and running
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: started
+    enabled: true
+  when: "'rsyslog' in (security_packages | default(default_security_packages))"

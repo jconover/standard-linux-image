@@ -1,0 +1,63 @@
+---
+# Main tasks file for hardening role
+# Tasks are organized in a specific order for proper dependency handling
+
+- name: Include security packages installation
+  ansible.builtin.include_tasks: packages.yml
+  tags:
+    - hardening
+    - hardening-packages
+
+- name: Include user and password policies
+  ansible.builtin.include_tasks: accounts.yml
+  tags:
+    - hardening
+    - hardening-accounts
+
+- name: Include SSH hardening
+  ansible.builtin.include_tasks: ssh.yml
+  tags:
+    - hardening
+    - hardening-ssh
+
+- name: Include PAM configuration
+  ansible.builtin.include_tasks: pam.yml
+  tags:
+    - hardening
+    - hardening-pam
+
+- name: Include firewall rules
+  ansible.builtin.include_tasks: firewall.yml
+  tags:
+    - hardening
+    - hardening-firewall
+
+- name: Include audit daemon configuration
+  ansible.builtin.include_tasks: auditd.yml
+  tags:
+    - hardening
+    - hardening-auditd
+
+- name: Include kernel parameters
+  ansible.builtin.include_tasks: sysctl.yml
+  tags:
+    - hardening
+    - hardening-sysctl
+
+- name: Include mount options and permissions
+  ansible.builtin.include_tasks: filesystem.yml
+  tags:
+    - hardening
+    - hardening-filesystem
+
+- name: Include unnecessary services disabling
+  ansible.builtin.include_tasks: services.yml
+  tags:
+    - hardening
+    - hardening-services
+
+- name: Include critical file permissions
+  ansible.builtin.include_tasks: permissions.yml
+  tags:
+    - hardening
+    - hardening-permissions

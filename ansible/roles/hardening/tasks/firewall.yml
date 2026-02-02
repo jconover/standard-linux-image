@@ -1,0 +1,269 @@
+---
+# CIS Benchmark Firewall Hardening Tasks for firewalld
+
+# Ensure firewalld is installed
+- name: Ensure firewalld is installed
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+# Deploy custom firewalld configuration
+- name: Deploy firewalld configuration
+  ansible.builtin.template:
+    src: firewalld.conf.j2
+    dest: /etc/firewalld/firewalld.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload firewalld
+
+# Enable and start firewalld service
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+# Set default zone to drop (deny by default)
+- name: Set default firewalld zone
+  ansible.builtin.command:
+    cmd: firewall-cmd --set-default-zone={{ firewall_default_zone }}
+  register: firewall_default_zone_result
+  changed_when: "'ZONE_ALREADY_SET' not in firewall_default_zone_result.stderr"
+  failed_when:
+    - firewall_default_zone_result.rc != 0
+    - "'ZONE_ALREADY_SET' not in firewall_default_zone_result.stderr"
+
+# Get the main network interface
+- name: Get default network interface
+  ansible.builtin.shell:
+    cmd: ip route | grep default | head -1 | awk '{print $5}'
+  register: default_interface
+  changed_when: false
+  failed_when: default_interface.stdout == ""
+
+# Configure public zone as active zone for main interface
+- name: Add main interface to public zone
+  ansible.posix.firewalld:
+    zone: public
+    interface: "{{ default_interface.stdout }}"
+    permanent: true
+    immediate: true
+    state: enabled
+
+# Remove unnecessary services from public zone
+- name: Remove cockpit service from public zone
+  ansible.posix.firewalld:
+    zone: public
+    service: cockpit
+    permanent: true
+    immediate: true
+    state: disabled
+  failed_when: false
+
+- name: Remove dhcpv6-client service from public zone
+  ansible.posix.firewalld:
+    zone: public
+    service: dhcpv6-client
+    permanent: true
+    immediate: true
+    state: disabled
+  when: firewall_disable_ipv6 | bool
+  failed_when: false
+
+# Allow configured services in public zone (when not using SSH rate limiting for ssh service)
+- name: Allow configured services in public zone
+  ansible.posix.firewalld:
+    zone: public
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ firewall_allowed_services }}"
+  when: not (firewall_ssh_rate_limit_enabled | bool and item == 'ssh')
+
+# Allow configured ports in public zone
+- name: Allow configured ports in public zone
+  ansible.posix.firewalld:
+    zone: public
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ firewall_allowed_ports }}"
+  when: firewall_allowed_ports | length > 0
+
+# Configure SSH rate limiting using rich rules
+- name: Remove default SSH service to use rich rule instead
+  ansible.posix.firewalld:
+    zone: public
+    service: ssh
+    permanent: true
+    immediate: true
+    state: disabled
+  when: firewall_ssh_rate_limit_enabled | bool
+
+- name: Configure SSH rate limiting rich rule (IPv4)
+  ansible.posix.firewalld:
+    zone: public
+    rich_rule: "rule family='ipv4' service name='ssh' accept limit value='{{ firewall_ssh_rate_limit }}'"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: firewall_ssh_rate_limit_enabled | bool
+
+- name: Configure SSH rate limiting rich rule (IPv6)
+  ansible.posix.firewalld:
+    zone: public
+    rich_rule: "rule family='ipv6' service name='ssh' accept limit value='{{ firewall_ssh_rate_limit }}'"
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - firewall_ssh_rate_limit_enabled | bool
+    - not (firewall_disable_ipv6 | bool)
+
+# Block ICMP timestamp requests (CIS requirement)
+- name: Block ICMP timestamp requests (IPv4)
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: timestamp-request
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Block ICMP timestamp reply (IPv4)
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: timestamp-reply
+    permanent: true
+    immediate: true
+    state: enabled
+
+# Configure ICMP echo-request (ping) handling
+- name: Allow ICMP echo-request in public zone (no rate limiting)
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: echo-request
+    permanent: true
+    immediate: true
+    state: disabled
+  when:
+    - firewall_allow_ping | bool
+    - not (firewall_ping_rate_limit_enabled | bool)
+
+- name: Block ICMP echo-request in public zone
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: echo-request
+    permanent: true
+    immediate: true
+    state: enabled
+  when: not (firewall_allow_ping | bool)
+
+# Configure rate-limited ping using rich rules (optional)
+- name: Remove echo-request from icmp blocks to use rich rule
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: echo-request
+    permanent: true
+    immediate: true
+    state: disabled
+  when:
+    - firewall_allow_ping | bool
+    - firewall_ping_rate_limit_enabled | bool
+
+- name: Configure rate-limited ping rich rule (IPv4)
+  ansible.posix.firewalld:
+    zone: public
+    rich_rule: "rule family='ipv4' icmp-type name='echo-request' accept limit value='{{ firewall_ping_rate_limit }}'"
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - firewall_allow_ping | bool
+    - firewall_ping_rate_limit_enabled | bool
+
+- name: Configure rate-limited ping rich rule (IPv6)
+  ansible.posix.firewalld:
+    zone: public
+    rich_rule: "rule family='ipv6' icmp-type name='echo-request' accept limit value='{{ firewall_ping_rate_limit }}'"
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - firewall_allow_ping | bool
+    - firewall_ping_rate_limit_enabled | bool
+    - not (firewall_disable_ipv6 | bool)
+
+# IPv6 configuration
+- name: Disable IPv6 in kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-disable-ipv6.conf
+    reload: true
+  loop:
+    - net.ipv6.conf.all.disable_ipv6
+    - net.ipv6.conf.default.disable_ipv6
+  when: firewall_disable_ipv6 | bool
+
+- name: Enable IPv6 in kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "0"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-disable-ipv6.conf
+    reload: true
+  loop:
+    - net.ipv6.conf.all.disable_ipv6
+    - net.ipv6.conf.default.disable_ipv6
+  when: not (firewall_disable_ipv6 | bool)
+
+# Configure IPv6 firewall rules to mirror IPv4 (when IPv6 is enabled)
+- name: Block ICMP timestamp requests (IPv6)
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: timestamp-request
+    permanent: true
+    immediate: true
+    state: enabled
+  when: not (firewall_disable_ipv6 | bool)
+
+- name: Block ICMP timestamp reply (IPv6)
+  ansible.posix.firewalld:
+    zone: public
+    icmp_block: timestamp-reply
+    permanent: true
+    immediate: true
+    state: enabled
+  when: not (firewall_disable_ipv6 | bool)
+
+# Ensure drop zone is configured properly for denied traffic
+- name: Configure drop zone to log denied packets
+  ansible.posix.firewalld:
+    zone: drop
+    target: DROP
+    permanent: true
+    immediate: true
+    state: enabled
+  failed_when: false
+
+# Apply custom rich rules if defined
+- name: Apply custom rich rules
+  ansible.posix.firewalld:
+    zone: "{{ item.zone | default('public') }}"
+    rich_rule: "{{ item.rule }}"
+    permanent: true
+    immediate: true
+    state: "{{ item.state | default('enabled') }}"
+  loop: "{{ firewall_custom_rich_rules }}"
+  when: firewall_custom_rich_rules | length > 0
+
+# Reload firewalld to ensure all changes are applied
+- name: Reload firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: reloaded

@@ -1,0 +1,89 @@
+# {{ ansible_managed }}
+# firewalld configuration file - CIS Benchmark Hardened
+#
+# See firewalld.conf(5) for more information on the configuration options.
+
+# Default zone
+# The default zone used if an empty zone string is used.
+# Default: public
+DefaultZone={{ firewall_default_zone }}
+
+# Clean up on exit
+# If set to no or false the firewall configuration will not get cleaned up
+# on exit or stop of firewalld.
+# Default: yes
+CleanupOnExit=yes
+
+# Clean up modules on exit
+# If set to yes or true then firewalld modules will be unloaded on exit
+# and stop of firewalld.
+# Default: yes
+CleanupModulesOnExit=yes
+
+# Lockdown
+# If set to enabled, firewall changes with the D-Bus interface will be limited
+# to applications that are listed in the lockdown whitelist.
+# The lockdown whitelist file is lockdown-whitelist.xml
+# Default: no
+Lockdown={{ 'yes' if firewall_lockdown_enabled | default(false) else 'no' }}
+
+# IPv6_rpfilter
+# Performs reverse path filtering (RPF) on IPv6 packets as defined in RFC 3704.
+# Possible values:
+# - strict: Performs strict source validation per RFC 3704.
+# - loose: Performs loose reverse path filtering per RFC 3704.
+# - no: Disables reverse path filtering.
+# Default: strict
+IPv6_rpfilter={{ firewall_ipv6_rpfilter | default('strict') }}
+
+# IndividualCalls
+# Do not use combined -restore calls, but individual calls. This increases the
+# time that is needed to apply changes and to start the daemon, but is good for
+# debugging.
+# Default: no
+IndividualCalls=no
+
+# LogDenied
+# Add logging rules right before reject and drop rules in the INPUT, FORWARD
+# and OUTPUT chains for the default rules and also final reject and drop rules
+# in zones. Possible values are: all, unicast, broadcast, multicast and off.
+# Default: off
+LogDenied={{ 'all' if firewall_enable_logging | bool else 'off' }}
+
+# FirewallBackend
+# Selects the firewall backend implementation.
+# Choices are:
+#   - nftables (default)
+#   - iptables
+# Note: iptables backend is deprecated in RHEL 9+
+FirewallBackend={{ firewall_backend | default('nftables') }}
+
+# FlushAllOnReload
+# Flush all runtime rules on a reload. In previous releases this was the
+# default behavior. If set to "no", only rules that have been added by
+# firewalld will be removed on a reload.
+# Default: yes
+FlushAllOnReload=yes
+
+# RFC3964_IPv4
+# As per RFC 3964, filter IPv6 traffic with 6to4 destination addresses that
+# correspond to IPv4 addresses that should not be routed over the public
+# internet.
+# Default: yes
+RFC3964_IPv4=yes
+
+# AllowZoneDrifting (deprecated)
+# This is deprecated and will be removed in a future release.
+# Default: no
+AllowZoneDrifting=no
+
+# NftablesFlowtable
+# Defines a network flowtable to offload connections to hardware when possible.
+# Default: off
+NftablesFlowtable={{ firewall_nftables_flowtable | default('off') }}
+
+# NftablesCounters
+# Enable nftables counters for rules. The counters can be displayed using
+# "nft list ruleset".
+# Default: no
+NftablesCounters={{ 'yes' if firewall_nftables_counters | default(false) else 'no' }}

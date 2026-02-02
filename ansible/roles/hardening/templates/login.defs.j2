@@ -1,0 +1,152 @@
+# {{ ansible_managed }}
+# CIS Benchmark Compliant Login Definitions
+#
+# See login.defs(5) man page for more information
+
+#
+# Password aging controls:
+#
+
+# Maximum number of days a password may be used
+PASS_MAX_DAYS   {{ hardening_password_max_age }}
+
+# Minimum number of days allowed between password changes
+PASS_MIN_DAYS   {{ hardening_password_min_age }}
+
+# Number of days warning given before a password expires
+PASS_WARN_AGE   {{ hardening_password_warn_age }}
+
+#
+# Min/max values for automatic uid selection in useradd
+#
+UID_MIN                  1000
+UID_MAX                 60000
+# System accounts
+SYS_UID_MIN               201
+SYS_UID_MAX               999
+
+#
+# Min/max values for automatic gid selection in groupadd
+#
+GID_MIN                  1000
+GID_MAX                 60000
+# System accounts
+SYS_GID_MIN               201
+SYS_GID_MAX               999
+
+#
+# If defined, this command is run when removing a user.
+# It should remove any at/cron/print jobs etc. owned by
+# the user to be removed (passed as the first argument).
+#
+#USERDEL_CMD    /usr/sbin/userdel_local
+
+#
+# If useradd should create home directories for users by default
+# On RH systems, we do. This option is overridden with the -m flag on
+# useradd command line.
+#
+CREATE_HOME     yes
+
+#
+# The permission mask is initialized to this value. If not specified,
+# the permission mask will be initialized to 022.
+#
+UMASK           077
+
+#
+# Password hashing configuration
+#
+ENCRYPT_METHOD {{ hardening_password_encrypt_method }}
+
+#
+# Only used if ENCRYPT_METHOD is set to SHA256 or SHA512.
+#
+# Define the number of SHA rounds.
+# With a lot of rounds, it is more difficult to brute force the password.
+# But note also that it more CPU resources will be needed to authenticate users.
+#
+# If not specified, the libc will choose the default number of rounds (5000).
+# The values must be inside the 1000-999999999 range.
+# If only one of the MIN or MAX values is set, then this value will be used.
+#
+SHA_CRYPT_MIN_ROUNDS {{ hardening_password_sha_crypt_min_rounds }}
+SHA_CRYPT_MAX_ROUNDS {{ hardening_password_sha_crypt_max_rounds }}
+
+#
+# Controls display of the motd file.
+#
+MOTD_FILE
+
+#
+# Use usermod to set home directory permissions
+#
+HOME_MODE       0750
+
+#
+# Path for user mailbox
+#
+MAIL_DIR        /var/spool/mail
+
+#
+# If defined, file which inhibits all the usual chatter during the login
+# sequence. If a full pathname, then hushed mode will be enabled if the
+# user's name or shell are found in the file. If not a full pathname, then
+# hushed mode will be enabled if the file exists in the user's home directory.
+#
+HUSHLOGIN_FILE  .hushlogin
+
+#
+# Environment variables to set in user sessions
+#
+ENV_SUPATH      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ENV_PATH        PATH=/usr/local/bin:/usr/bin
+
+#
+# Default initial "umask" value used by login(1) on non-PAM enabled systems.
+# Default "umask" value for pam_umask(8) on PAM enabled systems.
+# UMASK is also used by useradd(8) and newusers(8) to set the mode for new
+# home directories.
+# 022 is the default value, but 027, or even 077, could be considered
+# better for privacy. There is no One True Answer here: each sysadmin
+# must make up their mind.
+#
+# If USERGROUPS_ENAB is set to "yes", that will modify this UMASK default value
+# for private user groups, i. e. the uid is the same as gid, and username is
+# the same as the primary group name: for these, the user permissions will be
+# used as group permissions, e. g. 022 will become 002.
+#
+
+#
+# Enable "syslog" logging of su(1) activity - in addition to sulog file logging.
+# SYSLOG_SG_ENAB does the same for newgrp(1) and sg(1).
+#
+SYSLOG_SU_ENAB          yes
+SYSLOG_SG_ENAB          yes
+
+#
+# Enable setting of the umask group bits to be the same as owner bits
+# (examples: 022 -> 002, 077 -> 007) for non-root users, if the uid is
+# the same as gid, and username is the same as the primary group name.
+#
+USERGROUPS_ENAB yes
+
+#
+# Enable logging of failed login attempts
+#
+FAILLOG_ENAB            yes
+
+#
+# Enable display of unknown usernames when login failures are recorded
+#
+LOG_UNKFAIL_ENAB        no
+
+#
+# Enable logging of last login
+#
+LASTLOG_ENAB            yes
+
+#
+# Enable additional checks upon password changes
+#
+OBSCURE_CHECKS_ENAB     yes
